@@ -1,23 +1,35 @@
 const STEPS = [
-  { id: 1, name: "Reconnaissance",     start: 0,  end: 5,  tip: "Read the problem twice. Check constraints. Guess the intended time complexity. Do NOT touch the keyboard." },
-  { id: 2, name: "Observation",        start: 5,  end: 25, tip: "No keyboard. Pen and paper only. Draw sample cases. Find the math/logic invariant." },
-  { id: 3, name: "Attack It",          start: 25, end: 35, tip: "Try to break your logic with extreme edge cases (e.g., N=1, all zeros, sorted array)." },
-  { id: 4, name: "Code It",            start: 35, end: 45, tip: "Only touch the keyboard if your logic survived your own attacks. Code clean." },
-  { id: 5, name: "The Struggle",       start: 45, end: 60, tip: "Debug or rethink. If completely stuck, write down what you know and isolate the gap." },
-  { id: 6, name: "Editorial Protocol", start: 60, end: 90, tip: "Read only the first hint. Close the tab. Wait 30 minutes. Code the solution entirely from memory." }
+  { id:1, name:"Reconnaissance",     start:0,  end:5,  tip:"Read the problem twice. Check constraints. Guess the intended time complexity. Do NOT touch the keyboard." },
+  { id:2, name:"Observation",        start:5,  end:25, tip:"No keyboard. Pen and paper only. Draw sample cases. Find the math/logic invariant." },
+  { id:3, name:"Attack It",          start:25, end:35, tip:"Try to break your logic with extreme edge cases (e.g., N=1, all zeros, sorted array)." },
+  { id:4, name:"Code It",            start:35, end:45, tip:"Only touch the keyboard if your logic survived your own attacks. Code clean." },
+  { id:5, name:"The Struggle",       start:45, end:60, tip:"Debug or rethink. If completely stuck, write down what you know and isolate the gap." },
+  { id:6, name:"Editorial Protocol", start:60, end:90, tip:"Read only the first hint. Close the tab. Wait 30 minutes. Code the solution entirely from memory." }
 ];
 
-let tickInterval   = null;
-let alarmInterval  = null;
-let lastStepIndex  = -1;
-let alarmCountdown = 0;
+const PHASE_COLORS = ["#58a6ff","#d2a8ff","#ff7b72","#39d353","#ffa657","#e3b341"];
 
-// ── Audio beep using Web Audio API ──
+const PHASE_QUOTES = [
+  ["Understand before you act.","Constraints are clues.","Read. Then read again."],
+  ["Think on paper.","The diagram reveals the invariant.","Math first, code later."],
+  ["If it breaks, it was wrong.","N=1 is your best friend.","Attack your own logic."],
+  ["Clean code is fast code.","Think before you type.","One function, one job."],
+  ["Bugs fear a systematic mind.","Isolate, then eliminate.","Stuck? Explain it out loud."],
+  ["The hint is a key, not a door.","Close the tab. Think.","Memory builds mastery."]
+];
+
+const CIRCUMFERENCE = 339.29;
+
+let tickInterval  = null;
+let alarmInterval = null;
+let lastStepIndex = -1;
+let alarmCountdown = 0;
 let audioCtx = null;
+
 function playBeep() {
   try {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc  = audioCtx.createOscillator();
+    const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.connect(gain);
     gain.connect(audioCtx.destination);
@@ -27,10 +39,9 @@ function playBeep() {
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
     osc.start(audioCtx.currentTime);
     osc.stop(audioCtx.currentTime + 0.4);
-  } catch (e) { /* audio not available */ }
+  } catch(e) {}
 }
 
-// ── Helpers ──
 function getStepIndex(elapsedMin) {
   for (let i = STEPS.length - 1; i >= 0; i--) {
     if (elapsedMin >= STEPS[i].start) return i;
@@ -39,23 +50,27 @@ function getStepIndex(elapsedMin) {
 }
 
 function formatTime(totalSeconds) {
-  const m = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
-  const s = (totalSeconds % 60).toString().padStart(2, "0");
-  return `${m}:${s}`;
+  const m = Math.floor(totalSeconds / 60).toString().padStart(2,"0");
+  const s = (totalSeconds % 60).toString().padStart(2,"0");
+  return m + ":" + s;
 }
 
-// ── Alarm overlay: show for 10 seconds, beep every second ──
+function setAccentColor(stepIndex) {
+  const color = PHASE_COLORS[stepIndex];
+  document.documentElement.style.setProperty("--accent", color);
+  document.documentElement.style.setProperty("--accent-dim", color + "1a");
+}
+
 function triggerAlarm(stepIndex) {
   const step = STEPS[stepIndex];
-  document.getElementById("alarmPhase").textContent = `Phase ${step.id}: ${step.name}`;
-  document.getElementById("alarmTip").textContent   = step.tip;
+  document.getElementById("alarmPhase").textContent = "Phase " + step.id + ": " + step.name;
+  document.getElementById("alarmTip").textContent = step.tip;
   alarmCountdown = 10;
   document.getElementById("alarmCountdown").textContent = alarmCountdown;
   document.getElementById("alarmOverlay").classList.add("show");
   playBeep();
-
   if (alarmInterval) clearInterval(alarmInterval);
-  alarmInterval = setInterval(() => {
+  alarmInterval = setInterval(function() {
     alarmCountdown--;
     document.getElementById("alarmCountdown").textContent = alarmCountdown;
     playBeep();
@@ -67,71 +82,100 @@ function triggerAlarm(stepIndex) {
   }, 1000);
 }
 
-// ── Render all 6 steps in sidebar list ──
 function renderSteps(currentIndex) {
   const list = document.getElementById("stepsList");
   list.innerHTML = "";
-  STEPS.forEach((step, i) => {
+  STEPS.forEach(function(step, i) {
     const cls = i < currentIndex ? "done" : i === currentIndex ? "active" : "future";
     const numLabel = i < currentIndex ? "✓" : step.id;
-    const rangeText = step.end === 90 ? "60+ min" : `${step.start}–${step.end} min`;
+    const rangeText = step.end === 90 ? "60+ min" : step.start + "–" + step.end + " min";
     const row = document.createElement("div");
-    row.className = `step-row ${cls}`;
-    row.innerHTML = `
-      <div class="step-num">${numLabel}</div>
-      <div class="step-label">
-        <span class="step-label-name">${step.name}</span>
-        <span class="step-label-range">${rangeText}</span>
-      </div>`;
+    row.className = "step-row " + cls;
+    row.innerHTML =
+      '<div class="step-num">' + numLabel + '</div>' +
+      '<div class="step-label">' +
+        '<span class="step-label-name">' + step.name + '</span>' +
+        '<span class="step-label-range">' + rangeText + '</span>' +
+      '</div>';
     list.appendChild(row);
   });
 }
 
-// ── Update entire popup UI ──
 function updateUI(elapsedSec, stepIndex) {
-  const step = STEPS[stepIndex];
-  const elapsedMin = elapsedSec / 60;
+  var step = STEPS[stepIndex];
+  var elapsedMin = elapsedSec / 60;
 
-  // Timer display
+  setAccentColor(stepIndex);
+
+  var progress = Math.min(elapsedMin / 60, 1);
+  var offset = CIRCUMFERENCE * (1 - progress);
+  var ring = document.getElementById("progressRing");
+  ring.style.strokeDashoffset = offset;
+  ring.setAttribute("stroke", PHASE_COLORS[stepIndex]);
+
   document.getElementById("timerDisplay").textContent = formatTime(elapsedSec);
+  document.getElementById("ringLabel").textContent = "Phase " + step.id;
 
-  // Progress bar (0–60 min maps to 0–100%)
-  const pct = Math.min((elapsedMin / 60) * 100, 100);
-  document.getElementById("barFill").style.width = pct + "%";
-
-  // Current phase card
-  document.getElementById("phaseBadge").textContent = `Phase ${step.id}`;
+  document.getElementById("phaseBadge").textContent = "Phase " + step.id;
   document.getElementById("phaseName").textContent  = step.name;
-  document.getElementById("phaseRange").textContent = step.end === 90 ? "60+ min" : `${step.start}–${step.end} min`;
+  document.getElementById("phaseRange").textContent = step.end === 90 ? "60+ min" : step.start + "–" + step.end + " min";
   document.getElementById("phaseTip").textContent   = step.tip;
 
-  // Detect phase change → trigger alarm
+  var quotes = PHASE_QUOTES[stepIndex];
+  var quote  = quotes[Math.floor(elapsedSec / 30) % quotes.length];
+  document.getElementById("phaseQuote").textContent = '"' + quote + '"';
+
   if (lastStepIndex !== -1 && stepIndex !== lastStepIndex) {
     triggerAlarm(stepIndex);
+    var card = document.getElementById("phaseCard");
+    card.classList.add("flash");
+    setTimeout(function() { card.classList.remove("flash"); }, 600);
   }
   lastStepIndex = stepIndex;
-
   renderSteps(stepIndex);
 }
 
-// ── Tick every second ──
-function startTick() {
-  if (tickInterval) clearInterval(tickInterval);
-  tickInterval = setInterval(() => {
-    chrome.storage.local.get(["startTime", "isRunning"], (data) => {
-      if (!data.isRunning || !data.startTime) return;
-      const elapsedSec = Math.floor((Date.now() - data.startTime) / 1000);
-      updateUI(elapsedSec, getStepIndex(elapsedSec / 60));
+function saveToHistory(problemName, elapsedSec, stepIndex) {
+  chrome.storage.local.get(["history"], function(data) {
+    var history = data.history || [];
+    history.unshift({
+      problem: problemName || "Unnamed Problem",
+      time: formatTime(elapsedSec),
+      phase: "Phase " + (stepIndex + 1),
+      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })
     });
-  }, 1000);
+    chrome.storage.local.set({ history: history.slice(0, 50) });
+  });
 }
 
-// ── Button state helpers ──
+function renderHistory() {
+  chrome.storage.local.get(["history"], function(data) {
+    var history = data.history || [];
+    var list  = document.getElementById("historyList");
+    var empty = document.getElementById("historyEmpty");
+    list.innerHTML = "";
+    if (history.length === 0) { empty.classList.remove("hidden"); return; }
+    empty.classList.add("hidden");
+    history.forEach(function(item) {
+      var div = document.createElement("div");
+      div.className = "history-item";
+      div.innerHTML =
+        '<div>' +
+          '<div class="history-problem">' + item.problem + '</div>' +
+          '<div class="history-meta">'    + item.date + ' &middot; ' + item.phase + '</div>' +
+        '</div>' +
+        '<div class="history-time">' + item.time + '</div>';
+      list.appendChild(div);
+    });
+  });
+}
+
 function showRunning() {
   document.getElementById("startBtn").classList.add("hidden");
   document.getElementById("solvedBtn").classList.remove("hidden");
   document.getElementById("resetBtn").classList.remove("hidden");
   document.getElementById("solvedBanner").classList.add("hidden");
+  document.getElementById("problemInputWrap").style.display = "none";
 }
 
 function showIdle() {
@@ -143,9 +187,10 @@ function showIdle() {
   document.getElementById("solvedBtn").classList.add("hidden");
   document.getElementById("resetBtn").classList.add("hidden");
   document.getElementById("solvedBanner").classList.add("hidden");
-  document.getElementById("timerDisplay").textContent = "00:00";
-  document.getElementById("barFill").style.width = "0%";
+  document.getElementById("problemInputWrap").style.display = "block";
+  document.getElementById("progressRing").style.strokeDashoffset = CIRCUMFERENCE;
   lastStepIndex = -1;
+  setAccentColor(0);
   updateUI(0, 0);
 }
 
@@ -155,23 +200,54 @@ function showSolved(elapsedSec) {
   document.getElementById("startBtn").textContent = "▶ New Problem";
   document.getElementById("solvedBtn").classList.add("hidden");
   document.getElementById("resetBtn").classList.remove("hidden");
+  document.getElementById("problemInputWrap").style.display = "block";
   document.getElementById("solvedTime").textContent = formatTime(elapsedSec);
   document.getElementById("solvedBanner").classList.remove("hidden");
 }
 
-// ── Init on popup open ──
-document.addEventListener("DOMContentLoaded", () => {
+function startTick() {
+  if (tickInterval) clearInterval(tickInterval);
+  tickInterval = setInterval(function() {
+    chrome.storage.local.get(["startTime","isRunning"], function(data) {
+      if (!data.isRunning || !data.startTime) return;
+      var elapsedSec = Math.floor((Date.now() - data.startTime) / 1000);
+      updateUI(elapsedSec, getStepIndex(elapsedSec / 60));
+    });
+  }, 1000);
+}
+
+document.addEventListener("DOMContentLoaded", function() {
   renderSteps(0);
   updateUI(0, 0);
 
-  // Restore state from storage
-  chrome.storage.local.get(["startTime", "isRunning", "solved", "solvedAt"], (data) => {
+  // Tab switching
+  document.getElementById("tabTimer").addEventListener("click", function() {
+    document.getElementById("tabTimer").classList.add("active");
+    document.getElementById("tabHistory").classList.remove("active");
+    document.getElementById("panelTimer").classList.remove("hidden");
+    document.getElementById("panelHistory").classList.add("hidden");
+  });
+  document.getElementById("tabHistory").addEventListener("click", function() {
+    document.getElementById("tabHistory").classList.add("active");
+    document.getElementById("tabTimer").classList.remove("active");
+    document.getElementById("panelHistory").classList.remove("hidden");
+    document.getElementById("panelTimer").classList.add("hidden");
+    renderHistory();
+  });
+
+  // Clear history
+  document.getElementById("clearHistory").addEventListener("click", function() {
+    chrome.storage.local.set({ history: [] }, function() { renderHistory(); });
+  });
+
+  // Restore state
+  chrome.storage.local.get(["startTime","isRunning","solved","solvedAt"], function(data) {
     if (data.solved && data.startTime && data.solvedAt) {
-      const elapsedSec = Math.floor((data.solvedAt - data.startTime) / 1000);
+      var elapsedSec = Math.floor((data.solvedAt - data.startTime) / 1000);
       showSolved(elapsedSec);
       updateUI(elapsedSec, getStepIndex(elapsedSec / 60));
     } else if (data.isRunning && data.startTime) {
-      const elapsedSec = Math.floor((Date.now() - data.startTime) / 1000);
+      var elapsedSec = Math.floor((Date.now() - data.startTime) / 1000);
       lastStepIndex = getStepIndex(elapsedSec / 60);
       showRunning();
       updateUI(elapsedSec, lastStepIndex);
@@ -181,9 +257,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // ▶ Start / New Problem
-  document.getElementById("startBtn").addEventListener("click", () => {
-    chrome.runtime.sendMessage({ type: "START_TIMER" }, () => {
+  // Start button
+  document.getElementById("startBtn").addEventListener("click", function() {
+    chrome.runtime.sendMessage({ type: "START_TIMER" }, function() {
       lastStepIndex = 0;
       showRunning();
       updateUI(0, 0);
@@ -191,21 +267,23 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // ✅ Solved
-  document.getElementById("solvedBtn").addEventListener("click", () => {
-    chrome.storage.local.get(["startTime"], (data) => {
-      const elapsedSec = data.startTime
-        ? Math.floor((Date.now() - data.startTime) / 1000)
-        : 0;
-      chrome.runtime.sendMessage({ type: "MARK_SOLVED" }, () => {
+  // Solved button
+  document.getElementById("solvedBtn").addEventListener("click", function() {
+    chrome.storage.local.get(["startTime"], function(data) {
+      var elapsedSec  = data.startTime ? Math.floor((Date.now() - data.startTime) / 1000) : 0;
+      var stepIndex   = getStepIndex(elapsedSec / 60);
+      var problemName = document.getElementById("problemName").value;
+      saveToHistory(problemName, elapsedSec, stepIndex);
+      chrome.runtime.sendMessage({ type: "MARK_SOLVED" }, function() {
         showSolved(elapsedSec);
+        document.getElementById("problemName").value = "";
       });
     });
   });
 
-  // ↺ Reset
-  document.getElementById("resetBtn").addEventListener("click", () => {
-    chrome.runtime.sendMessage({ type: "RESET_TIMER" }, () => {
+  // Reset button
+  document.getElementById("resetBtn").addEventListener("click", function() {
+    chrome.runtime.sendMessage({ type: "RESET_TIMER" }, function() {
       showIdle();
     });
   });
