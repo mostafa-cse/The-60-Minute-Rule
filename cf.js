@@ -31,18 +31,7 @@ async function fetchSolvedSet(handle) {
   return solved;
 }
 
-async function fetchProblemsAtRating(rating, solvedSet) {
-  const result = await cfGet('problemset.problems');
-  const all = result.problems || [];
-  return all.filter(function(p) {
-    return (
-      p.rating === rating &&
-      p.contestId &&
-      !solvedSet.has(p.contestId + '-' + p.index) &&
-      p.contestId < 2000   // exclude educational/gym with high IDs
-    );
-  });
-}
+
 
 // ── UI helpers ──
 function setStatus(msg, type) {
@@ -137,11 +126,8 @@ function escHtml(str) {
 // ── Main load function ──
 async function cfLoadProblems(forceRefetch) {
   var handle = (document.getElementById('cfUsername').value || '').trim();
-  var rating = parseInt(document.getElementById('cfTargetRating').value) || 1200;
 
-  showLoading(true);
-  document.getElementById('cfProblemList').innerHTML = '';
-  document.getElementById('cfEmpty').classList.add('hidden');
+
 
   try {
     var solvedSet = new Set();
@@ -169,13 +155,7 @@ async function cfLoadProblems(forceRefetch) {
       document.getElementById('cfRank').style.color = RANK_COLORS[rank] || '#8b949e';
       card.classList.remove('hidden');
 
-      // Auto-sync target rating to Rule of 10
-      if (user.rating) {
-        var roundedRating = Math.round(user.rating / 100) * 100;
-        var sel = document.getElementById('cfTargetRating');
-        if (sel) sel.value = String(roundedRating);
-        rating = roundedRating;
-      }
+
 
       // Fetch solved problems
       setStatus('Fetching solved problems…', 'info');
@@ -189,20 +169,14 @@ async function cfLoadProblems(forceRefetch) {
       setStatus('No handle — showing all unsolved problems', '');
     }
 
-    // Fetch problems
-    setStatus(setStatus.lastMsg || 'Loading problems…', 'info');
-    var problems = await fetchProblemsAtRating(rating, solvedSet);
-    renderProblems(problems);
-    if (problems.length > 0) {
-      setStatus('Showing 10 of ' + problems.length + ' unsolved problems at ' + rating, 'ok');
-    }
+    setStatus('User info loaded ✓ — ' + solvedSet.size + ' problems solved', 'ok');
 
   } catch(err) {
     setStatus('❌ ' + (err.message || 'Unknown error'), 'err');
     document.getElementById('cfUserCard').classList.add('hidden');
   }
 
-  showLoading(false);
+
 }
 
 // ── Init ──

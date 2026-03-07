@@ -1,46 +1,59 @@
 /* ══════════════════════════════════════════
    OFFSCREEN DOCUMENT — Audio alarm player
-   Runs hidden in background, has full DOM
+   Fixed: AudioContext suspend + race condition
 ══════════════════════════════════════════ */
 
-let audioCtx = null;
+let audioCtx   = null;
 let alarmTimer = null;
 
-function getAudioCtx() {
+async function getAudioCtx() {
   if (!audioCtx || audioCtx.state === 'closed') {
     audioCtx = new AudioContext();
+  }
+  // Resume if suspended (browser autoplay policy)
+  if (audioCtx.state === 'suspended') {
+    await audioCtx.resume();
   }
   return audioCtx;
 }
 
-function singleBeep(ctx, freq, startTime, duration) {
+function singleBeep(ctx, freq, startTime, dur) {
   const osc  = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.connect(gain);
   gain.connect(ctx.destination);
   osc.type = 'sine';
   osc.frequency.value = freq;
-  gain.gain.setValueAtTime(0.45, startTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+  gain.gain.setValueAtTime(0.5, startTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime + dur);
   osc.start(startTime);
-  osc.stop(startTime + duration);
+  osc.stop(startTime + dur);
 }
 
-function playAlarmFor10Seconds(phaseIndex) {
+async function playAlarmFor10Seconds(phaseIndex) {
   if (alarmTimer) clearInterval(alarmTimer);
 
-  // Phase accent frequencies — match phase colors
-  const FREQS = [660, 528, 880, 440, 660, 550];
-  const freq  = FREQS[phaseIndex] || 880;
-  let ticks   = 0;
+  // Each phase has a distinct frequency pair
+  const FREQ_PAIRS = [
+    [660, 780],   // Phase 1 Reconnaissance  — calm
+    [528, 660],   // Phase 2 Observation     — soft
+    [880, 1050],  // Phase 3 Attack It       — sharp
+    [440, 550],   // Phase 4 Code It         — firm
+    [660, 800],   // Phase 5 The Struggle    — urgent
+    [550, 660]    // Phase 6 Editorial       — mellow
+  ];
 
-  function tick() {
+  const pair = FREQ_PAIRS[phaseIndex] || [880, 1050];
+  let ticks  = 0;
+
+  async function tick() {
     try {
-      const ctx = getAudioCtx();
-      // Double-beep: two short pulses per second
-      singleBeep(ctx, freq,       ctx.currentTime,       0.15);
-      singleBeep(ctx, freq * 1.2, ctx.currentTime + 0.2, 0.15);
-    } catch(e) {}
+      const ctx = await getAudioCtx();
+      singleBeep(ctx, pair[0], ctx.currentTime,       0.18);
+      singleBeep(ctx, pair[1], ctx.currentTime + 0.22, 0.18);
+    } catch(e) {
+      console.warn('Beep error:', e);
+    }
     ticks++;
     if (ticks >= 10) {
       clearInterval(alarmTimer);
@@ -48,17 +61,19 @@ function playAlarmFor10Seconds(phaseIndex) {
     }
   }
 
-  tick(); // play immediately
+  await tick(); // play immediately on alarm
   alarmTimer = setInterval(tick, 1000);
 }
 
-// Listen for messages from background.js
-chrome.runtime.onMessage.addListener((msg) => {
+// Ready — listen for messages from background.js
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'PLAY_PHASE_ALARM') {
     playAlarmFor10Seconds(msg.phaseIndex || 0);
+    sendResponse({ ok: true });
   }
   if (msg.type === 'STOP_ALARM') {
-    if (alarmTimer) clearInterval(alarmTimer);
-    alarmTimer = null;
+    if (alarmTimer) { clearInterval(alarmTimer); alarmTimer = null; }
+    sendResponse({ ok: true });
   }
+  return true;
 });

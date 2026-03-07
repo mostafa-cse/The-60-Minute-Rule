@@ -17,35 +17,67 @@ function getStepIndex(m) {
 /* ── Offscreen ── */
 async function ensureOffscreen() {
   try {
-    if (!(await chrome.offscreen.hasDocument())) {
+    // Use getContexts (reliable) instead of deprecated hasDocument
+    const contexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT']
+    });
+    if (contexts.length === 0) {
       await chrome.offscreen.createDocument({
-        url: 'offscreen.html', reasons: ['AUDIO_PLAYBACK'],
-        justification: 'Play phase alarm beep'
+        url:           chrome.runtime.getURL('offscreen.html'),
+        reasons:       ['AUDIO_PLAYBACK'],
+        justification: 'Play phase alarm beep for 10 seconds'
       });
+      // Wait for offscreen document to fully initialize before messaging
+      await new Promise(resolve => setTimeout(resolve, 600));
     }
-  } catch(e) {}
+  } catch(e) {
+    console.warn('ensureOffscreen error:', e);
+  }
 }
+
 async function playPhaseAlarm(idx) {
   await ensureOffscreen();
-  try { await chrome.runtime.sendMessage({ type:'PLAY_PHASE_ALARM', phaseIndex: idx }); } catch(e) {}
+  // Retry up to 3 times in case offscreen is still loading
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await chrome.runtime.sendMessage({ type: 'PLAY_PHASE_ALARM', phaseIndex: idx });
+      return; // success
+    } catch(e) {
+      if (attempt < 2) {
+        await new Promise(r => setTimeout(r, 400));
+      }
+    }
+  }
 }
 
 /* ── Icon drawing ── */
 function drawTimerIcon(elapsedSec, ci) {
   const sz = 32, canvas = new OffscreenCanvas(sz, sz), ctx = canvas.getContext('2d');
   const accent = PHASE_COLORS[ci] || '#39d353';
-  const min = Math.floor(elapsedSec/60).toString().padStart(2,'0');
-  const sec = (elapsedSec%60).toString().padStart(2,'0');
-  ctx.fillStyle='#0d1117'; ctx.fillRect(0,0,sz,sz);
-  ctx.strokeStyle=accent; ctx.lineWidth=2; ctx.strokeRect(1,1,sz-2,sz-2);
-  ctx.fillStyle=accent; ctx.font='bold 13px monospace';
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(min, sz/2, 10);
-  ctx.strokeStyle=accent+'55'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(5,16); ctx.lineTo(27,16); ctx.stroke();
-  ctx.fillStyle=accent+'cc'; ctx.font='bold 11px monospace';
-  ctx.fillText(sec, sz/2, 24);
-  return ctx.getImageData(0,0,sz,sz);
+  const min = Math.floor(elapsedSec / 60).toString();
+
+  // Background
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, sz, sz);
+
+  // Colored border
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, sz - 2, sz - 2);
+
+  // Big minute number centered
+  ctx.fillStyle = accent;
+  ctx.font = 'bold 18px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(min, sz / 2, sz / 2 - 4);
+
+  // Small "min" label below
+  ctx.fillStyle = accent + 'aa';
+  ctx.font = 'bold 8px monospace';
+  ctx.fillText('min', sz / 2, sz / 2 + 9);
+
+  return ctx.getImageData(0, 0, sz, sz);
 }
 function setTimerIcon(s,ci) {
   try { chrome.action.setIcon({ imageData:{32: drawTimerIcon(s,ci)} }); } catch(e) {}
