@@ -226,12 +226,14 @@ document.addEventListener("DOMContentLoaded", function() {
     document.getElementById("tabHistory").classList.remove("active");
     document.getElementById("panelTimer").classList.remove("hidden");
     document.getElementById("panelHistory").classList.add("hidden");
+    document.getElementById("panelRule10").classList.add("hidden");
   });
   document.getElementById("tabHistory").addEventListener("click", function() {
     document.getElementById("tabHistory").classList.add("active");
     document.getElementById("tabTimer").classList.remove("active");
     document.getElementById("panelHistory").classList.remove("hidden");
     document.getElementById("panelTimer").classList.add("hidden");
+    document.getElementById("panelRule10").classList.add("hidden");
     renderHistory();
   });
 

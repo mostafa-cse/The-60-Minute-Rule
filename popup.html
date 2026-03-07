@@ -17,6 +17,7 @@
     <div class="tab-pills">
       <button class="tab-pill active" id="tabTimer">Timer</button>
       <button class="tab-pill" id="tabHistory">History</button>
+      <button class="tab-pill" id="tabRule10">Rule·10</button>
     </div>
   </div>
 
@@ -98,6 +99,59 @@
     </div>
   </div>
 
+
+  <!-- ═══════════ RULE OF 10 PANEL ═══════════ -->
+  <div id="panelRule10" class="hidden">
+
+    <div class="r10-intro">
+      <div class="r10-intro-title">🏆 The Rule of 10</div>
+      <div class="r10-intro-desc">
+        Solve <strong style="color:#e3b341">10 problems in a row</strong> at a rating
+        within <strong style="color:#e3b341">45 minutes each</strong> — zero editorials.
+        Hit 10? You have mastered that rating. <strong style="color:#e3b341">Move up immediately.</strong>
+      </div>
+    </div>
+
+    <div class="r10-rating-row">
+      <span class="r10-rating-label">Target Rating:</span>
+      <select class="r10-rating-select" id="r10Rating">
+        <option>800</option><option>900</option>
+        <option>1000</option><option>1100</option>
+        <option selected>1200</option><option>1300</option>
+        <option>1400</option><option>1500</option>
+        <option>1600</option><option>1700</option>
+        <option>1800</option><option>1900</option>
+        <option>2000</option><option>2100</option>
+        <option>2200</option><option>2300</option>
+        <option>2400+</option>
+      </select>
+    </div>
+
+    <div class="r10-streak-wrap">
+      <div id="r10MasteryBannerSlot"></div>
+      <div class="r10-streak-number" id="r10StreakNum">0</div>
+      <div class="r10-streak-of">consecutive solves &nbsp;/&nbsp; goal: 10</div>
+      <div class="r10-dots" id="r10Dots"></div>
+      <div class="r10-hint">Each solve ≤ 45 min &middot; no editorial &middot; streak resets on editorial</div>
+    </div>
+
+    <div class="r10-actions">
+      <button class="btn-r10-solved" id="r10SolvedBtn">
+        ✅ &nbsp; Solved! &nbsp;(≤ 45 min · no editorial)
+      </button>
+      <button class="btn-r10-editorial" id="r10EditorialBtn">
+        📖 &nbsp; Used Editorial — Reset Streak to 0
+      </button>
+    </div>
+
+    <div class="r10-mastered-title">🏅 Mastered Ratings</div>
+    <div class="r10-mastered-badges" id="r10MasteredList">
+      <span class="r10-mastered-empty">None yet — start solving!</span>
+    </div>
+
+  </div>
+
+  <script src="rule10.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
