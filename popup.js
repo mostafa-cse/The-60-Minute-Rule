@@ -20,6 +20,47 @@ const PHASE_QUOTES = [
 
 const CIRCUMFERENCE = 339.29;
 
+// ── Draw MM:SS on toolbar icon every second ──
+function drawAndSetIcon(elapsedSec, stepIndex) {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width  = 32;
+    canvas.height = 32;
+    const ctx    = canvas.getContext('2d');
+    const accent = PHASE_COLORS[stepIndex] || '#39d353';
+    const min    = Math.floor(elapsedSec / 60).toString().padStart(2, '0');
+    const sec    = (elapsedSec % 60).toString().padStart(2, '0');
+
+    ctx.fillStyle = '#0d1117';
+    ctx.fillRect(0, 0, 32, 32);
+
+    ctx.strokeStyle = accent;
+    ctx.lineWidth   = 2;
+    ctx.strokeRect(1, 1, 30, 30);
+
+    ctx.fillStyle    = accent;
+    ctx.font         = 'bold 13px monospace';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(min, 16, 10);
+
+    ctx.strokeStyle = accent + '55';
+    ctx.lineWidth   = 1;
+    ctx.beginPath();
+    ctx.moveTo(5, 16); ctx.lineTo(27, 16);
+    ctx.stroke();
+
+    ctx.fillStyle = accent + 'cc';
+    ctx.font      = 'bold 11px monospace';
+    ctx.fillText(sec, 16, 23);
+
+    const imageData = ctx.getImageData(0, 0, 32, 32);
+    chrome.action.setIcon({ imageData: { 32: imageData } });
+  } catch(e) {}
+}
+
+
+
 let tickInterval  = null;
 let alarmInterval = null;
 let lastStepIndex = -1;
@@ -212,6 +253,7 @@ function startTick() {
       if (!data.isRunning || !data.startTime) return;
       var elapsedSec = Math.floor((Date.now() - data.startTime) / 1000);
       updateUI(elapsedSec, getStepIndex(elapsedSec / 60));
+      drawAndSetIcon(elapsedSec, getStepIndex(elapsedSec / 60));
     });
   }, 1000);
 }
@@ -248,6 +290,7 @@ document.addEventListener("DOMContentLoaded", function() {
       var elapsedSec = Math.floor((data.solvedAt - data.startTime) / 1000);
       showSolved(elapsedSec);
       updateUI(elapsedSec, getStepIndex(elapsedSec / 60));
+      drawAndSetIcon(elapsedSec, getStepIndex(elapsedSec / 60));
     } else if (data.isRunning && data.startTime) {
       var elapsedSec = Math.floor((Date.now() - data.startTime) / 1000);
       lastStepIndex = getStepIndex(elapsedSec / 60);
