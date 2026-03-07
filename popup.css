@@ -1,0 +1,171 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  width: 360px;
+  background: #0d1117;
+  color: #e6edf3;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px 10px;
+  border-bottom: 1px solid #21262d;
+}
+.header-icon { font-size: 26px; }
+.header-title { font-size: 14px; font-weight: 700; color: #58a6ff; }
+.header-sub   { font-size: 10px; color: #8b949e; }
+
+/* ── Timer ── */
+.timer-display {
+  text-align: center;
+  font-size: 54px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 3px;
+  color: #39d353;
+  padding: 14px 0 6px;
+}
+
+/* ── Progress Bar ── */
+.bar-wrap {
+  height: 4px;
+  background: #21262d;
+  margin: 0 14px 12px;
+  border-radius: 2px;
+}
+.bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #39d353, #58a6ff);
+  border-radius: 2px;
+  transition: width 1s linear;
+}
+
+/* ── Current Phase Card ── */
+.phase-card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  margin: 0 12px 10px;
+  padding: 11px 14px;
+}
+.phase-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  background: #58a6ff18;
+  color: #58a6ff;
+  border: 1px solid #58a6ff33;
+  padding: 2px 8px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+.phase-name  { font-size: 16px; font-weight: 700; color: #f0f6fc; margin-bottom: 2px; }
+.phase-range { font-size: 11px; color: #39d353; font-weight: 600; margin-bottom: 6px; }
+.phase-tip   { font-size: 12px; color: #8b949e; line-height: 1.55; }
+
+/* ── Steps List ── */
+.steps-list {
+  margin: 0 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+.step-row.active { background: #0d419d18; border-color: #58a6ff33; }
+.step-row.done   { opacity: 0.4; }
+.step-row.future { opacity: 0.55; }
+
+.step-num {
+  font-size: 10px; font-weight: 700;
+  background: #21262d; color: #8b949e;
+  width: 20px; height: 20px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.step-row.active .step-num { background: #58a6ff; color: #0d1117; }
+.step-row.done   .step-num { background: #39d353; color: #0d1117; }
+
+.step-label { display: flex; flex-direction: column; }
+.step-label-name  { font-size: 12px; font-weight: 600; color: #e6edf3; }
+.step-label-range { font-size: 10px; color: #8b949e; }
+
+/* ── Alarm Overlay ── */
+.alarm-overlay {
+  position: fixed; inset: 0;
+  background: rgba(13, 17, 23, 0.97);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  gap: 6px;
+}
+.alarm-overlay.show { display: flex; }
+
+.alarm-bell {
+  font-size: 52px;
+  animation: ring 0.25s ease infinite alternate;
+}
+@keyframes ring {
+  from { transform: rotate(-18deg) scale(1); }
+  to   { transform: rotate(18deg)  scale(1.1); }
+}
+.alarm-phase {
+  font-size: 17px; font-weight: 700;
+  color: #f0f6fc; margin-top: 4px; text-align: center; padding: 0 20px;
+}
+.alarm-tip   { font-size: 12px; color: #8b949e; text-align: center; padding: 0 24px; }
+.alarm-countdown {
+  font-size: 48px; font-weight: 700;
+  color: #58a6ff; line-height: 1;
+  margin-top: 8px;
+}
+.alarm-label { font-size: 12px; color: #8b949e; }
+
+/* ── Solved Banner ── */
+.solved-banner {
+  background: #0f2d0f;
+  border-top: 1px solid #2ea04330;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: #39d353;
+  text-align: center;
+}
+
+/* ── Controls ── */
+.controls {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px 12px;
+}
+.btn {
+  flex: 1; padding: 9px 0;
+  border: none; border-radius: 6px;
+  font-size: 13px; font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btn:active { transform: scale(0.96); }
+.btn-start  { background: #238636; color: #fff; }
+.btn-start:hover  { background: #2ea043; }
+.btn-solved { background: #1f6feb; color: #fff; }
+.btn-solved:hover { background: #388bfd; }
+.btn-reset  { background: #21262d; color: #e6edf3; border: 1px solid #30363d; }
+.btn-reset:hover  { background: #30363d; }
+
+.hidden { display: none !important; }

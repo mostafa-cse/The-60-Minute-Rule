@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "The 60-Minute Rule",
+  "version": "1.0.0",
+  "description": "A structured competitive programming protocol. 6 phases. 60 minutes. No excuses.",
+  "icons": {
+    "48": "icons/icon48.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "The 60-Minute Rule"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["storage", "alarms", "notifications"],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "sixty-minute-rule@cp-tools.io"
+    }
+  }
+}
