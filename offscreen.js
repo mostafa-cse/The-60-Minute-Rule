@@ -1,8 +1,3 @@
-/* ══════════════════════════════════════════
-   OFFSCREEN DOCUMENT — Audio alarm player
-   Fixed: AudioContext suspend + race condition
-══════════════════════════════════════════ */
-
 let audioCtx   = null;
 let alarmTimer = null;
 
@@ -10,7 +5,6 @@ async function getAudioCtx() {
   if (!audioCtx || audioCtx.state === 'closed') {
     audioCtx = new AudioContext();
   }
-  // Resume if suspended (browser autoplay policy)
   if (audioCtx.state === 'suspended') {
     await audioCtx.resume();
   }
@@ -31,25 +25,24 @@ function singleBeep(ctx, freq, startTime, dur) {
 }
 
 async function playAlarmFor10Seconds(phaseIndex) {
-  if (alarmTimer) clearInterval(alarmTimer);
+  if (alarmTimer) { clearInterval(alarmTimer); alarmTimer = null; }
 
-  // Each phase has a distinct frequency pair
   const FREQ_PAIRS = [
-    [660, 780],   // Phase 1 Reconnaissance  — calm
-    [528, 660],   // Phase 2 Observation     — soft
-    [880, 1050],  // Phase 3 Attack It       — sharp
-    [440, 550],   // Phase 4 Code It         — firm
-    [660, 800],   // Phase 5 The Struggle    — urgent
-    [550, 660]    // Phase 6 Editorial       — mellow
+    [660, 780],
+    [528, 660],
+    [880, 1050],
+    [440, 550],
+    [660, 800],
+    [550, 660]
   ];
 
   const pair = FREQ_PAIRS[phaseIndex] || [880, 1050];
-  let ticks  = 0;
+  let ticks = 0;
 
   async function tick() {
     try {
       const ctx = await getAudioCtx();
-      singleBeep(ctx, pair[0], ctx.currentTime,       0.18);
+      singleBeep(ctx, pair[0], ctx.currentTime, 0.18);
       singleBeep(ctx, pair[1], ctx.currentTime + 0.22, 0.18);
     } catch(e) {
       console.warn('Beep error:', e);
@@ -61,11 +54,10 @@ async function playAlarmFor10Seconds(phaseIndex) {
     }
   }
 
-  await tick(); // play immediately on alarm
+  await tick();
   alarmTimer = setInterval(tick, 1000);
 }
 
-// Ready — listen for messages from background.js
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'PLAY_PHASE_ALARM') {
     playAlarmFor10Seconds(msg.phaseIndex || 0);
