@@ -331,3 +331,110 @@ circle { transition: stroke-dashoffset 1s linear, stroke 0.5s ease; }
 .r10-mastery-icon  { font-size: 34px; }
 .r10-mastery-title { font-size: 15px; font-weight: 700; color: #e3b341; margin: 6px 0 3px; }
 .r10-mastery-desc  { font-size: 11px; color: var(--muted); }
+
+/* ══════════════ Codeforces Panel ══════════════ */
+#panelCF { padding: 10px 12px 14px; }
+
+.cf-username-wrap { margin-bottom: 10px; }
+.cf-username-row {
+  display: flex; gap: 6px;
+}
+.cf-username-row input {
+  flex: 1; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 10px;
+  font-size: 13px; color: var(--text); outline: none;
+  transition: border-color 0.2s;
+}
+.cf-username-row input:focus { border-color: #58a6ff; }
+.cf-username-row input::placeholder { color: var(--muted); }
+.btn-cf-load {
+  padding: 7px 14px; background: #1f6feb; color: #fff;
+  border: none; border-radius: 8px; font-size: 12px; font-weight: 700;
+  cursor: pointer; white-space: nowrap; transition: background 0.2s;
+}
+.btn-cf-load:hover { background: #388bfd; }
+.cf-status { font-size: 11px; color: var(--muted); margin-top: 4px; min-height: 14px; }
+.cf-status.err  { color: #ff7b72; }
+.cf-status.ok   { color: #39d353; }
+.cf-status.info { color: #58a6ff; }
+
+/* User card */
+.cf-user-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 12px; margin-bottom: 10px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.cf-user-left { display: flex; align-items: center; gap: 9px; }
+.cf-avatar {
+  width: 38px; height: 38px; border-radius: 50%;
+  border: 2px solid var(--border); object-fit: cover;
+  background: #21262d;
+}
+.cf-handle { font-size: 13px; font-weight: 700; color: var(--text); }
+.cf-rank   { font-size: 10px; color: var(--muted); text-transform: capitalize; }
+.cf-rating-box { text-align: center; }
+.cf-rating-num { font-size: 22px; font-weight: 700; color: #ffa657; }
+.cf-rating-lbl { font-size: 10px; color: var(--muted); }
+
+/* Filter row */
+.cf-filter-row {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 8px;
+}
+.cf-filter-label { font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.cf-rating-sel {
+  flex: 1; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text);
+  padding: 5px 8px; font-size: 12px; font-weight: 700;
+  outline: none; cursor: pointer;
+}
+.cf-rating-sel:focus { border-color: #58a6ff; }
+.btn-cf-refresh {
+  padding: 5px 9px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 8px;
+  font-size: 14px; cursor: pointer; transition: background 0.2s;
+}
+.btn-cf-refresh:hover { background: #30363d; }
+
+/* Problem cards */
+.cf-problem-list { display: flex; flex-direction: column; gap: 5px; }
+.cf-problem-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 9px 11px;
+  transition: border-color 0.2s;
+}
+.cf-problem-card:hover { border-color: #58a6ff44; }
+.cf-problem-top {
+  display: flex; justify-content: space-between;
+  align-items: flex-start; gap: 6px; margin-bottom: 4px;
+}
+.cf-problem-name {
+  font-size: 12px; font-weight: 600; color: var(--text);
+  flex: 1; line-height: 1.4;
+}
+.cf-problem-id {
+  font-size: 10px; font-weight: 700; color: #58a6ff;
+  background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.2);
+  padding: 2px 7px; border-radius: 10px; white-space: nowrap;
+}
+.cf-problem-tags {
+  font-size: 10px; color: var(--muted);
+  margin-bottom: 6px; line-height: 1.4;
+}
+.cf-problem-actions { display: flex; gap: 5px; }
+.btn-cf-open {
+  flex: 1; padding: 5px; font-size: 11px; font-weight: 700;
+  background: #21262d; border: 1px solid var(--border);
+  color: var(--text); border-radius: 6px; cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-cf-open:hover { background: #30363d; }
+.btn-cf-start-timer {
+  flex: 2; padding: 5px; font-size: 11px; font-weight: 700;
+  background: #238636; border: none;
+  color: #fff; border-radius: 6px; cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-cf-start-timer:hover { background: #2ea043; }
+
+.cf-loading { text-align: center; color: var(--muted); font-size: 12px; padding: 20px 0; }
+.cf-empty   { text-align: center; color: var(--muted); font-size: 12px; padding: 20px 0; line-height: 1.8; }

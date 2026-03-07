@@ -269,6 +269,7 @@ document.addEventListener("DOMContentLoaded", function() {
     document.getElementById("panelTimer").classList.remove("hidden");
     document.getElementById("panelHistory").classList.add("hidden");
     document.getElementById("panelRule10").classList.add("hidden");
+    document.getElementById("panelCF").classList.add("hidden");
   });
   document.getElementById("tabHistory").addEventListener("click", function() {
     document.getElementById("tabHistory").classList.add("active");
@@ -276,6 +277,7 @@ document.addEventListener("DOMContentLoaded", function() {
     document.getElementById("panelHistory").classList.remove("hidden");
     document.getElementById("panelTimer").classList.add("hidden");
     document.getElementById("panelRule10").classList.add("hidden");
+    document.getElementById("panelCF").classList.add("hidden");
     renderHistory();
   });
 

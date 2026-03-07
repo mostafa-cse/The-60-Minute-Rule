@@ -18,6 +18,7 @@
       <button class="tab-pill active" id="tabTimer">Timer</button>
       <button class="tab-pill" id="tabHistory">History</button>
       <button class="tab-pill" id="tabRule10">Rule·10</button>
+      <button class="tab-pill" id="tabCF">CF</button>
     </div>
   </div>
 
@@ -151,6 +152,61 @@
 
   </div>
 
+
+  <!-- ═══════════ CODEFORCES PANEL ═══════════ -->
+  <div id="panelCF" class="hidden">
+
+    <!-- Username input -->
+    <div class="cf-username-wrap">
+      <div class="cf-username-row">
+        <input type="text" id="cfUsername"
+          placeholder="Codeforces handle (optional)"
+          maxlength="40" autocomplete="off" />
+        <button class="btn-cf-load" id="cfLoadBtn">Load</button>
+      </div>
+      <div class="cf-status" id="cfStatus"></div>
+    </div>
+
+    <!-- User info card (shown after load) -->
+    <div class="cf-user-card hidden" id="cfUserCard">
+      <div class="cf-user-left">
+        <img class="cf-avatar" id="cfAvatar" src="" alt="avatar" />
+        <div>
+          <div class="cf-handle"   id="cfHandle"></div>
+          <div class="cf-rank"     id="cfRank"></div>
+        </div>
+      </div>
+      <div class="cf-rating-box">
+        <div class="cf-rating-num" id="cfRating">—</div>
+        <div class="cf-rating-lbl">rating</div>
+      </div>
+    </div>
+
+    <!-- Filter row -->
+    <div class="cf-filter-row" id="cfFilterRow">
+      <span class="cf-filter-label">Problems at:</span>
+      <select class="cf-rating-sel" id="cfTargetRating">
+        <option>800</option><option>900</option>
+        <option>1000</option><option>1100</option>
+        <option selected>1200</option><option>1300</option>
+        <option>1400</option><option>1500</option>
+        <option>1600</option><option>1700</option>
+        <option>1800</option><option>1900</option>
+        <option>2000</option><option>2100</option>
+        <option>2200</option><option>2300</option>
+        <option>2400</option>
+      </select>
+      <button class="btn-cf-refresh" id="cfRefreshBtn">🔄</button>
+    </div>
+
+    <!-- Problems list -->
+    <div class="cf-loading hidden" id="cfLoading">⏳ Fetching problems…</div>
+    <div class="cf-problem-list" id="cfProblemList"></div>
+    <div class="cf-empty hidden" id="cfEmpty">No unsolved problems found at this rating.<br/>Try a different rating!</div>
+
+  </div>
+
+  <script src="cf.js"></script>
   <script src="rule10.js"></script>
   <script src="popup.js"></script>
 </body>

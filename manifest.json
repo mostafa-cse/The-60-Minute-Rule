@@ -17,7 +17,8 @@
     "storage",
     "alarms",
     "notifications",
-    "offscreen"
+    "offscreen",
+    "tabs"
   ],
   "commands": {
     "_execute_action": {
@@ -31,5 +32,11 @@
     "gecko": {
       "id": "sixty-minute-rule@cp-tools.io"
     }
+  },
+  "host_permissions": [
+    "https://codeforces.com/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; connect-src https://codeforces.com;"
   }
 }
