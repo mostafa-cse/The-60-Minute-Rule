@@ -17,7 +17,34 @@ function getStepIndex(elapsedMin) {
   return 0;
 }
 
-// ── Draw MM:SS on a 32x32 OffscreenCanvas ──
+// ── Offscreen document: create if not exists ──
+async function ensureOffscreen() {
+  try {
+    const existing = await chrome.offscreen.hasDocument();
+    if (!existing) {
+      await chrome.offscreen.createDocument({
+        url:           'offscreen.html',
+        reasons:       ['AUDIO_PLAYBACK'],
+        justification: 'Play phase alarm beep sound for 10 seconds'
+      });
+    }
+  } catch(e) {
+    console.warn('Offscreen document error:', e);
+  }
+}
+
+// ── Play alarm sound via offscreen ──
+async function playPhaseAlarm(phaseIndex) {
+  await ensureOffscreen();
+  try {
+    await chrome.runtime.sendMessage({
+      type:       'PLAY_PHASE_ALARM',
+      phaseIndex: phaseIndex
+    });
+  } catch(e) {}
+}
+
+// ── Toolbar icon: draw MM:SS on 32x32 canvas ──
 function drawTimerIcon(elapsedSec, colorIndex) {
   const size   = 32;
   const canvas = new OffscreenCanvas(size, size);
@@ -26,48 +53,35 @@ function drawTimerIcon(elapsedSec, colorIndex) {
   const min    = Math.floor(elapsedSec / 60).toString().padStart(2, '0');
   const sec    = (elapsedSec % 60).toString().padStart(2, '0');
 
-  // Dark background with rounded feel
   ctx.fillStyle = '#0d1117';
   ctx.fillRect(0, 0, size, size);
-
-  // Colored border
   ctx.strokeStyle = accent;
   ctx.lineWidth   = 2;
   ctx.strokeRect(1, 1, size - 2, size - 2);
-
-  // Minutes (top)
   ctx.fillStyle    = accent;
   ctx.font         = 'bold 13px monospace';
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(min, size / 2, 10);
-
-  // Divider line
   ctx.strokeStyle = accent + '55';
   ctx.lineWidth   = 1;
   ctx.beginPath();
-  ctx.moveTo(5, 16);
-  ctx.lineTo(size - 5, 16);
+  ctx.moveTo(5, 16); ctx.lineTo(27, 16);
   ctx.stroke();
-
-  // Seconds (bottom)
   ctx.fillStyle = accent + 'cc';
   ctx.font      = 'bold 11px monospace';
-  ctx.fillText(sec, size / 2, 23);
+  ctx.fillText(sec, size / 2, 24);
 
   return ctx.getImageData(0, 0, size, size);
 }
 
 function setTimerIcon(elapsedSec, colorIndex) {
   try {
-    const imageData = drawTimerIcon(elapsedSec, colorIndex);
-    chrome.action.setIcon({ imageData: { 32: imageData } });
+    chrome.action.setIcon({ imageData: { 32: drawTimerIcon(elapsedSec, colorIndex) } });
   } catch(e) {}
 }
 
-function resetIcon() {
-  chrome.action.setIcon({ path: { 48: 'icons/icon48.png' } });
-}
+function resetIcon()  { chrome.action.setIcon({ path: { 48: 'icons/icon48.png' } }); }
 
 function setSolvedIcon() {
   try {
@@ -76,7 +90,7 @@ function setSolvedIcon() {
     ctx.fillStyle = '#0d1117';
     ctx.fillRect(0, 0, 32, 32);
     ctx.strokeStyle = '#39d353';
-    ctx.lineWidth = 2;
+    ctx.lineWidth   = 2;
     ctx.strokeRect(1, 1, 30, 30);
     ctx.fillStyle    = '#39d353';
     ctx.font         = 'bold 10px sans-serif';
@@ -87,35 +101,52 @@ function setSolvedIcon() {
   } catch(e) {}
 }
 
-// ── Alarm handler ──
-chrome.alarms.onAlarm.addListener((alarm) => {
+// ── Alarm fires here (wakes service worker) ──
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+
+  // Phase transition alarm
   if (alarm.name.startsWith("phase-")) {
     const idx  = parseInt(alarm.name.split("-")[1]);
     const step = STEPS[idx];
     if (!step) return;
+
+    // 1. System notification (visible even if popup closed)
     chrome.notifications.create(`notif-${Date.now()}`, {
-      type: "basic", iconUrl: "icons/icon48.png",
-      title: `⏰ Phase ${step.id}: ${step.name}`,
-      message: step.tip, priority: 2, requireInteraction: false
+      type:               'basic',
+      iconUrl:            'icons/icon48.png',
+      title:              `⏰ Phase ${step.id}: ${step.name}`,
+      message:            step.tip,
+      priority:           2,
+      requireInteraction: false
+    });
+
+    // 2. Audio alarm via offscreen document (10-second beep)
+    await playPhaseAlarm(idx);
+
+    // 3. Update icon to new phase color
+    chrome.storage.local.get(['startTime'], (data) => {
+      if (data.startTime) {
+        const elapsedSec = Math.floor((Date.now() - data.startTime) / 1000);
+        setTimerIcon(elapsedSec, idx);
+      }
     });
   }
 
-  // icon-tick fires every minute when popup is closed
-  if (alarm.name === "icon-tick") {
+  // Minute tick for icon update when popup is closed
+  if (alarm.name === 'icon-tick') {
     chrome.storage.local.get(['startTime', 'isRunning'], (data) => {
       if (!data.isRunning || !data.startTime) return;
       const elapsedSec = Math.floor((Date.now() - data.startTime) / 1000);
       setTimerIcon(elapsedSec, getStepIndex(elapsedSec / 60));
-      // reschedule for next minute
       chrome.alarms.create('icon-tick', { delayInMinutes: 1 });
     });
   }
 });
 
-// ── Message handler ──
+// ── Messages from popup ──
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
-  if (msg.type === "START_TIMER") {
+  if (msg.type === 'START_TIMER') {
     const startTime = Date.now();
     chrome.storage.local.set({ startTime, isRunning: true, solved: false, solvedAt: null });
     chrome.alarms.clearAll();
@@ -131,14 +162,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ ok: true, startTime });
   }
 
-  if (msg.type === "RESET_TIMER") {
+  if (msg.type === 'RESET_TIMER') {
     chrome.storage.local.set({ startTime: null, isRunning: false, solved: false, solvedAt: null });
     chrome.alarms.clearAll();
     resetIcon();
     sendResponse({ ok: true });
   }
 
-  if (msg.type === "MARK_SOLVED") {
+  if (msg.type === 'MARK_SOLVED') {
     const solvedAt = Date.now();
     chrome.storage.local.set({ isRunning: false, solved: true, solvedAt });
     chrome.alarms.clearAll();
