@@ -208,6 +208,39 @@ async function cfLoadProblems(forceRefetch) {
 // ── Init ──
 document.addEventListener('DOMContentLoaded', function() {
 
+
+  // ── Auto-detect toggle ──
+  var autoToggle = document.getElementById('cfAutoToggle');
+  var modeBadge  = document.getElementById('cfModeBadge');
+  var autoSub    = document.getElementById('cfAutoSub');
+
+  function updateToggleUI(isAuto) {
+    if (!autoToggle) return;
+    autoToggle.checked = isAuto;
+    if (modeBadge) {
+      modeBadge.textContent = isAuto ? '🔵 Auto Mode — timer stops on AC' : '🟡 Manual Mode — you get notified';
+      modeBadge.className   = 'cf-mode-badge' + (isAuto ? ' auto' : '');
+    }
+    if (autoSub) {
+      autoSub.textContent = isAuto
+        ? 'AC detected → timer auto-stops + notification sent.'
+        : 'AC detected → notification with Mark Solved / Keep Going.';
+    }
+  }
+
+  // Restore saved toggle state
+  chrome.storage.local.get(['cfAutoMode'], function(d) {
+    updateToggleUI(!!d.cfAutoMode);
+  });
+
+  if (autoToggle) {
+    autoToggle.addEventListener('change', function() {
+      var isAuto = autoToggle.checked;
+      chrome.storage.local.set({ cfAutoMode: isAuto });
+      updateToggleUI(isAuto);
+    });
+  }
+
   // Restore saved handle
   chrome.storage.local.get(['cfHandle', 'r10'], function(data) {
     if (data.cfHandle) {
