@@ -37,6 +37,6 @@
     "https://codeforces.com/*"
   ],
   "content_security_policy": {
-    "extension_pages": "default-src 'self'; connect-src https://codeforces.com;"
+    "extension_pages": "default-src 'self'; connect-src https://codeforces.com; style-src 'self' 'unsafe-inline';"
   }
 }

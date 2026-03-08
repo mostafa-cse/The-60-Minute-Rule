@@ -39,7 +39,7 @@ function r10ShowMasteryBanner(rating) {
     '<div class="r10-mastery-banner">' +
       '<div class="r10-mastery-icon">🎉</div>' +
       '<div class="r10-mastery-title">You have mastered ' + rating + '!</div>' +
-      '<div class="r10-mastery-desc">Move up to <strong style="color:#e3b341">' + nextRating + '</strong> immediately. You are ready.</div>' +
+      '<div class="r10-mastery-desc">Move up to <strong class="highlight">' + nextRating + '</strong> immediately. You are ready.</div>' +
     '</div>';
   setTimeout(function() { slot.innerHTML = ""; }, 10000);
 }

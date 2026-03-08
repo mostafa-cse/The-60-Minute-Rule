@@ -502,3 +502,17 @@ body {
   opacity: 0.4;
   display: flex;
 }
+
+/* ── Inline-style replacements (CSP fix) ── */
+.highlight { color: #e3b341; font-weight: 700; }
+
+.cf-rank[data-rank="newbie"]                    { color: #808080; }
+.cf-rank[data-rank="pupil"]                     { color: #008000; }
+.cf-rank[data-rank="specialist"]                { color: #03a89e; }
+.cf-rank[data-rank="expert"]                    { color: #0000ff; }
+.cf-rank[data-rank="candidate master"]          { color: #aa00aa; }
+.cf-rank[data-rank="master"]                    { color: #ff8c00; }
+.cf-rank[data-rank="international master"]      { color: #ff8c00; }
+.cf-rank[data-rank="grandmaster"]               { color: #ff0000; }
+.cf-rank[data-rank="international grandmaster"] { color: #ff0000; }
+.cf-rank[data-rank="legendary grandmaster"]     { color: #ff0000; }
