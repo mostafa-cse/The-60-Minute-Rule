@@ -174,6 +174,17 @@ async function pollCFSubmissions() {
 }
 
 /* ── Notification button clicks ── */
+
+// Open popup when "Start New Problem" notification is clicked
+chrome.notifications.onClicked.addListener((notifId) => {
+  if (notifId.startsWith('cf-auto-') || notifId.startsWith('cf-ac-')) {
+    chrome.action.openPopup().catch(() => {
+      // Fallback: if popup can't be opened programmatically, just clear notif
+    });
+    chrome.notifications.clear(notifId);
+  }
+});
+
 chrome.notifications.onButtonClicked.addListener((notifId, btnIdx) => {
   if (!notifId.startsWith('cf-ac-')) return;
   chrome.notifications.clear(notifId);
@@ -257,22 +268,41 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const solvedAt   = Date.now();
     const elapsedSec = startTime ? Math.floor((solvedAt - startTime) / 1000) : 0;
     const timeStr    = Math.floor(elapsedSec / 60) + 'm ' + (elapsedSec % 60) + 's';
-
+    const stepIndex  = getStepIndex(elapsedSec / 60);
+    
+    // Stop CF polling
     chrome.runtime.sendMessage({ type: 'STOP_CF_POLL' }).catch(() => {});
 
+    // Save to history immediately
+    chrome.storage.local.get(['history'], (d) => {
+      const history = d.history || [];
+      history.unshift({
+        problem: problemName || 'CF Problem',
+        time:    timeStr,
+        phase:   'Phase ' + (stepIndex + 1),
+        date:    new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      });
+      chrome.storage.local.set({ history: history.slice(0, 50) });
+    });
+
     if (autoMode) {
-      chrome.storage.local.set({ isRunning: false, solved: true, solvedAt,
-        cfLastAcId: submissionId });
+      // Auto mode: stop timer, mark solved, show "Start New Problem" notification
+      chrome.storage.local.set({
+        isRunning: false, solved: true, solvedAt,
+        cfLastAcId: submissionId
+      });
       chrome.alarms.clearAll();
       setSolvedIcon();
+      
       chrome.notifications.create('cf-auto-' + submissionId, {
         type: 'basic', iconUrl: 'icons/icon48.png',
         title: '🎉 Accepted! Timer Auto-Stopped',
-        message: '"' + problemName + '" accepted in ' + timeStr +
-                 '! Open extension to start a new problem.',
+        message: '"' + problemName + '" solved in ' + timeStr + 
+                 '! Click to start a new problem.',
         priority: 2, requireInteraction: true
       });
     } else {
+      // Manual mode: ask user with buttons
       chrome.notifications.create('cf-ac-' + submissionId, {
         type: 'basic', iconUrl: 'icons/icon48.png',
         title: '🎉 Accepted on Codeforces!',

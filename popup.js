@@ -311,6 +311,13 @@ document.addEventListener("DOMContentLoaded", function() {
 
   // Start button
   document.getElementById("startBtn").addEventListener("click", function() {
+    // Clear problem name if starting a new problem after marking solved
+    chrome.storage.local.get(['solved'], function(d) {
+      if (d.solved) {
+        var inp = document.getElementById("problemName");
+        if (inp) inp.value = "";
+      }
+    });
     chrome.runtime.sendMessage({ type: "START_TIMER" }, function() {
       lastStepIndex = 0;
       showRunning();
