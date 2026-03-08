@@ -123,23 +123,28 @@ function triggerAlarm(stepIndex) {
   }, 1000);
 }
 
-function renderSteps(currentIndex) {
-  const list = document.getElementById("stepsList");
-  list.innerHTML = "";
-  STEPS.forEach(function(step, i) {
-    const cls = i < currentIndex ? "done" : i === currentIndex ? "active" : "future";
-    const numLabel = i < currentIndex ? "✓" : step.id;
-    const rangeText = step.end === 90 ? "60+ min" : step.start + "–" + step.end + " min";
-    const row = document.createElement("div");
-    row.className = "step-row " + cls;
-    row.innerHTML =
-      '<div class="step-num">' + numLabel + '</div>' +
-      '<div class="step-label">' +
-        '<span class="step-label-name">' + step.name + '</span>' +
-        '<span class="step-label-range">' + rangeText + '</span>' +
-      '</div>';
-    list.appendChild(row);
-  });
+function renderPhaseDots(currentIndex) {
+  var dots = document.getElementById("phaseDots");
+  if (dots) {
+    dots.innerHTML = "";
+    STEPS.forEach(function(step, i) {
+      var d = document.createElement("div");
+      d.className = "phase-dot " + (i < currentIndex ? "done" : i === currentIndex ? "active" : "future");
+      d.setAttribute("data-name", step.name);
+      dots.appendChild(d);
+    });
+  }
+  var numEl = document.getElementById("phaseNumCurrent");
+  if (numEl) numEl.textContent = currentIndex + 1;
+  var hint = document.getElementById("phaseNextHint");
+  if (hint) {
+    if (currentIndex < STEPS.length - 1) {
+      var n = STEPS[currentIndex + 1];
+      hint.textContent = "Next: " + n.name + " at " + n.start + " min";
+    } else {
+      hint.textContent = "Final phase — read only the first hint";
+    }
+  }
 }
 
 function updateUI(elapsedSec, stepIndex) {
@@ -169,11 +174,11 @@ function updateUI(elapsedSec, stepIndex) {
   if (lastStepIndex !== -1 && stepIndex !== lastStepIndex) {
     triggerAlarm(stepIndex);
     var card = document.getElementById("phaseCard");
-    card.classList.add("flash");
-    setTimeout(function() { card.classList.remove("flash"); }, 600);
+    card.classList.remove("flash","slide-in"); void card.offsetWidth; card.classList.add("flash","slide-in");
+    setTimeout(function() { card.classList.remove("flash","slide-in"); }, 600);
   }
   lastStepIndex = stepIndex;
-  renderSteps(stepIndex);
+  renderPhaseDots(stepIndex);
 }
 
 function saveToHistory(problemName, elapsedSec, stepIndex) {
@@ -259,7 +264,7 @@ function startTick() {
 }
 
 document.addEventListener("DOMContentLoaded", function() {
-  renderSteps(0);
+  renderPhaseDots(0);
   updateUI(0, 0);
 
   // Tab switching

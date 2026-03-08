@@ -22,69 +22,53 @@
     </div>
   </div>
 
-  <!-- ═══════════ TIMER PANEL ═══════════ -->
+    <!-- TIMER PANEL -->
   <div id="panelTimer">
-
-    <!-- Circular Ring Timer -->
     <div class="ring-wrap">
       <svg width="160" height="160" viewBox="0 0 160 160">
-        <circle cx="80" cy="80" r="54" fill="none"
-          stroke="#21262d" stroke-width="10"/>
-        <circle cx="80" cy="80" r="54" fill="none"
-          stroke="var(--accent)" stroke-width="10"
-          stroke-dasharray="339.29"
-          stroke-dashoffset="339.29"
-          stroke-linecap="round"
-          transform="rotate(-90 80 80)"
-          id="progressRing"/>
+        <circle cx="80" cy="80" r="54" fill="none" stroke="#21262d" stroke-width="10"/>
+        <circle cx="80" cy="80" r="54" fill="none" stroke="var(--accent)" stroke-width="10"
+          stroke-dasharray="339.29" stroke-dashoffset="339.29"
+          stroke-linecap="round" transform="rotate(-90 80 80)" id="progressRing"/>
       </svg>
       <div class="ring-center">
         <div class="ring-time" id="timerDisplay">00:00</div>
         <div class="ring-label" id="ringLabel">Phase 1</div>
       </div>
     </div>
-
-    <!-- Current Phase Card -->
     <div class="phase-card" id="phaseCard">
-      <div class="phase-badge" id="phaseBadge">Phase 1</div>
-      <div class="phase-name" id="phaseName">Reconnaissance</div>
-      <div class="phase-range" id="phaseRange">0 – 5 min</div>
-      <div class="phase-tip" id="phaseTip">
-        Read the problem twice. Check constraints. Guess the intended time complexity. Do NOT touch the keyboard.
+      <div class="phase-card-header">
+        <div class="phase-counter">
+          <span class="phase-counter-num" id="phaseNumCurrent">1</span>
+          <span class="phase-counter-sep">/6</span>
+        </div>
+        <div class="phase-badge" id="phaseBadge">Phase 1</div>
       </div>
+      <div class="phase-name"  id="phaseName">Reconnaissance</div>
+      <div class="phase-range" id="phaseRange">0-5 min</div>
+      <div class="phase-tip"   id="phaseTip">Read the problem twice. Check constraints. Do NOT touch the keyboard.</div>
       <div class="phase-quote" id="phaseQuote">"Understand before you act."</div>
+      <div class="phase-dots"  id="phaseDots"></div>
+      <div class="phase-next-hint" id="phaseNextHint"></div>
     </div>
-
-    <!-- 6 Steps List -->
-    <div class="steps-list" id="stepsList"></div>
-
-    <!-- Problem Name Input -->
     <div class="problem-input-wrap" id="problemInputWrap">
-      <input type="text" id="problemName"
-        placeholder="🏷 Problem name (optional)" maxlength="60" />
+      <input type="text" id="problemName" placeholder="Problem name (optional)" maxlength="60"/>
     </div>
-
-    <!-- Alarm Overlay (10-sec ring) -->
     <div class="alarm-overlay" id="alarmOverlay">
-      <div class="alarm-bell">🔔</div>
+      <div class="alarm-bell">&#x1F514;</div>
       <div class="alarm-phase" id="alarmPhase">Phase 2: Observation</div>
-      <div class="alarm-tip" id="alarmTip">Pen & paper only.</div>
+      <div class="alarm-tip"   id="alarmTip">Pen and paper only.</div>
       <div class="alarm-countdown" id="alarmCountdown">10</div>
       <div class="alarm-label">seconds</div>
     </div>
-
-    <!-- Solved Banner -->
     <div class="solved-banner hidden" id="solvedBanner">
-      ✅ Solved in <strong id="solvedTime">--:--</strong> — Ready for a new problem?
+      Solved in <strong id="solvedTime">--:--</strong> — Ready for a new problem?
     </div>
-
-    <!-- Controls -->
     <div class="controls">
-      <button class="btn btn-start"  id="startBtn">▶ Start</button>
-      <button class="btn btn-solved hidden" id="solvedBtn">✅ Solved!</button>
-      <button class="btn btn-reset  hidden" id="resetBtn">↺ Reset</button>
+      <button class="btn btn-start"         id="startBtn">&#x25B6; Start</button>
+      <button class="btn btn-solved hidden" id="solvedBtn">&#x2705; Solved!</button>
+      <button class="btn btn-reset  hidden" id="resetBtn">&#x21BA; Reset</button>
     </div>
-
   </div>
   <!-- end panelTimer -->
 
