@@ -105,12 +105,15 @@ function renderProblems(problems) {
       if (nameInput) nameInput.value = btn.dataset.name;
       // Open CF in tab
       chrome.tabs.create({ url: btn.dataset.url });
-      // Switch to Timer tab and start
+      // Switch to Timer tab and start (retry loop — no fragile timeout)
       document.getElementById('tabTimer').click();
-      setTimeout(function() {
+      var _att = 0, _try = setInterval(function() {
+        _att++;
         var startBtn = document.getElementById('startBtn');
-        if (startBtn && !startBtn.classList.contains('hidden')) startBtn.click();
-      }, 200);
+        if (startBtn && !startBtn.classList.contains('hidden')) {
+          clearInterval(_try); startBtn.click();
+        } else if (_att >= 5) { clearInterval(_try); }
+      }, 100);
     });
   });
 }
@@ -125,58 +128,77 @@ function escHtml(str) {
 
 // ── Main load function ──
 async function cfLoadProblems(forceRefetch) {
-  var handle = (document.getElementById('cfUsername').value || '').trim();
+  var handle       = (document.getElementById('cfUsername').value || '').trim();
+  var ratingEl     = document.getElementById('cfTargetRating');
+  var targetRating = ratingEl ? parseInt(ratingEl.value) || 0 : 0;
 
-
+  showLoading(true);
+  setStatus('', '');
 
   try {
     var solvedSet = new Set();
 
     if (handle) {
-      // Fetch user info
       setStatus('Fetching user info…', 'info');
       var user = await fetchUserInfo(handle);
 
-      // Show user card
       var card = document.getElementById('cfUserCard');
-      document.getElementById('cfAvatar').src   = user.titlePhoto || '';
+      document.getElementById('cfAvatar').src         = user.titlePhoto || '';
       document.getElementById('cfHandle').textContent = user.handle;
       document.getElementById('cfRank').textContent   = (user.rank || 'unrated');
       document.getElementById('cfRating').textContent = user.rating || '—';
 
-      // Color rank
       var RANK_COLORS = {
         'newbie':'#808080','pupil':'#008000','specialist':'#03a89e',
         'expert':'#0000ff','candidate master':'#aa00aa','master':'#ff8c00',
         'international master':'#ff8c00','grandmaster':'#ff0000',
         'international grandmaster':'#ff0000','legendary grandmaster':'#ff0000'
       };
-      var rank = (user.rank || '').toLowerCase();
-      document.getElementById('cfRank').style.color = RANK_COLORS[rank] || '#8b949e';
+      document.getElementById('cfRank').style.color =
+        RANK_COLORS[(user.rank || '').toLowerCase()] || '#8b949e';
       card.classList.remove('hidden');
 
-
-
-      // Fetch solved problems
       setStatus('Fetching solved problems…', 'info');
       solvedSet = await fetchSolvedSet(handle);
-      setStatus('Found ' + solvedSet.size + ' solved problems ✓', 'ok');
-
-      // Save to storage
       chrome.storage.local.set({ cfHandle: handle, cfSolvedCount: solvedSet.size });
     } else {
       document.getElementById('cfUserCard').classList.add('hidden');
-      setStatus('No handle — showing all unsolved problems', '');
     }
 
-    setStatus('User info loaded ✓ — ' + solvedSet.size + ' problems solved', 'ok');
+    // ── Fetch problem list ──
+    setStatus('Fetching problems…', 'info');
+    var endpoint = 'problemset.problems';
+    if (targetRating) {
+      endpoint += '?maxDifficultyRating=' + targetRating +
+                  '&minDifficultyRating=' + (targetRating - 200);
+    }
+    var result      = await cfGet(endpoint);
+    var allProblems = (result && result.problems) ? result.problems : [];
+
+    // Filter out solved problems
+    var unsolved = allProblems.filter(function(p) {
+      return !solvedSet.has(p.contestId + '-' + p.index);
+    });
+
+    // Narrow to exact target rating if set
+    if (targetRating) {
+      unsolved = unsolved.filter(function(p) { return p.rating === targetRating; });
+    }
+
+    renderProblems(unsolved);
+
+    var statusMsg = handle
+      ? 'Loaded ' + unsolved.length + ' unsolved · ' + solvedSet.size + ' solved ✓'
+      : 'Loaded ' + unsolved.length + ' problems ✓';
+    setStatus(statusMsg, 'ok');
 
   } catch(err) {
     setStatus('❌ ' + (err.message || 'Unknown error'), 'err');
     document.getElementById('cfUserCard').classList.add('hidden');
+    renderProblems([]);
+  } finally {
+    showLoading(false);
   }
-
-
 }
 
 // ── Init ──

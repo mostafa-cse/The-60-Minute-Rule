@@ -17,7 +17,6 @@ function getStepIndex(m) {
 /* ── Offscreen ── */
 async function ensureOffscreen() {
   try {
-    // Use getContexts (reliable) instead of deprecated hasDocument
     const contexts = await chrome.runtime.getContexts({
       contextTypes: ['OFFSCREEN_DOCUMENT']
     });
@@ -27,9 +26,17 @@ async function ensureOffscreen() {
         reasons:       ['AUDIO_PLAYBACK'],
         justification: 'Play phase alarm beep for 10 seconds'
       });
-      // Wait for offscreen document to fully initialize before messaging
-      await new Promise(resolve => setTimeout(resolve, 600));
     }
+    // Ping-pong: poll until offscreen document responds (up to 2 seconds)
+    for (let i = 0; i < 20; i++) {
+      try {
+        await chrome.runtime.sendMessage({ type: 'PING' });
+        return; // offscreen is ready
+      } catch(e) {
+        await new Promise(r => setTimeout(r, 100));
+      }
+    }
+    console.warn('ensureOffscreen: offscreen did not respond after 2s');
   } catch(e) {
     console.warn('ensureOffscreen error:', e);
   }
@@ -38,16 +45,16 @@ async function ensureOffscreen() {
 async function playPhaseAlarm(idx) {
   await ensureOffscreen();
   // Retry up to 3 times in case offscreen is still loading
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     try {
       await chrome.runtime.sendMessage({ type: 'PLAY_PHASE_ALARM', phaseIndex: idx });
       return; // success
     } catch(e) {
-      if (attempt < 2) {
-        await new Promise(r => setTimeout(r, 400));
-      }
+      console.warn('playPhaseAlarm attempt', attempt + 1, 'failed:', e.message);
+      await new Promise(r => setTimeout(r, 300));
     }
   }
+  console.error('playPhaseAlarm: all 5 attempts failed for phase', idx);
 }
 
 /* ── Icon drawing ── */
@@ -211,14 +218,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     });
   }
 
-  // CF submission poll
-  if (alarm.name === 'cf-poll') {
-    await pollCFSubmissions();
-    // Reschedule if still running
-    chrome.storage.local.get(['isRunning'], (d) => {
-      if (d.isRunning) chrome.alarms.create('cf-poll', { delayInMinutes:1 });
-    });
-  }
+  // cf-poll alarm deprecated — polling now handled by offscreen setInterval (10s)
 });
 
 /* ── Messages from popup ── */
@@ -232,9 +232,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (i > 0) chrome.alarms.create('phase-' + i, { when: startTime + step.start*60*1000 });
     });
     chrome.alarms.create('icon-tick', { delayInMinutes:1 });
-    // Start CF polling if handle is saved
-    chrome.storage.local.get(['cfHandle'], (d) => {
-      if (d.cfHandle) chrome.alarms.create('cf-poll', { delayInMinutes:1 });
+    // Start 10-second CF polling via offscreen document
+    chrome.storage.local.get(['cfHandle'], async (d) => {
+      if (d.cfHandle) {
+        await ensureOffscreen();
+        chrome.runtime.sendMessage({ type: 'START_CF_POLL' }).catch(() => {});
+      }
     });
     setTimerIcon(0, 0);
     sendResponse({ ok:true, startTime });
@@ -244,7 +247,45 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     chrome.storage.local.set({ startTime:null, isRunning:false, solved:false, solvedAt:null, cfLastAcId:null });
     chrome.alarms.clearAll();
     resetIcon();
+    chrome.runtime.sendMessage({ type: 'STOP_CF_POLL' }).catch(() => {});
     sendResponse({ ok:true });
+  }
+
+
+  if (msg.type === 'CF_AC_FOUND') {
+    const { problemName, submissionId, autoMode, startTime } = msg;
+    const solvedAt   = Date.now();
+    const elapsedSec = startTime ? Math.floor((solvedAt - startTime) / 1000) : 0;
+    const timeStr    = Math.floor(elapsedSec / 60) + 'm ' + (elapsedSec % 60) + 's';
+
+    chrome.runtime.sendMessage({ type: 'STOP_CF_POLL' }).catch(() => {});
+
+    if (autoMode) {
+      chrome.storage.local.set({ isRunning: false, solved: true, solvedAt,
+        cfLastAcId: submissionId });
+      chrome.alarms.clearAll();
+      setSolvedIcon();
+      chrome.notifications.create('cf-auto-' + submissionId, {
+        type: 'basic', iconUrl: 'icons/icon48.png',
+        title: '🎉 Accepted! Timer Auto-Stopped',
+        message: '"' + problemName + '" accepted in ' + timeStr +
+                 '! Open extension to start a new problem.',
+        priority: 2, requireInteraction: true
+      });
+    } else {
+      chrome.notifications.create('cf-ac-' + submissionId, {
+        type: 'basic', iconUrl: 'icons/icon48.png',
+        title: '🎉 Accepted on Codeforces!',
+        message: '"' + problemName + '" solved in ' + timeStr + '. Mark as solved?',
+        buttons: [
+          { title: '✅ Mark Solved + Reset' },
+          { title: '⏩ Keep Timer Going'   }
+        ],
+        priority: 2, requireInteraction: true
+      });
+    }
+    sendResponse({ ok: true });
+    return true;
   }
 
   if (msg.type === 'MARK_SOLVED') {

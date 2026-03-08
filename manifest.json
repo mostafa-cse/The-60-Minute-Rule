@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "The 60-Minute Rule",
-  "version": "2.0.0",
+  "version": "2.7.0",
   "description": "Structured competitive programming timer. 6 phases. 60 minutes. No excuses.",
   "icons": {
     "48": "icons/icon48.png"

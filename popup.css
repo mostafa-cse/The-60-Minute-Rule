@@ -481,3 +481,24 @@ circle { transition: stroke-dashoffset 1s linear, stroke 0.5s ease; }
   border-color: rgba(31,111,235,0.3);
   color: #58a6ff;
 }
+
+/* ── All phases always visible ── */
+body {
+  overflow-y: auto;
+  max-height: 580px;
+}
+#panelTimer {
+  overflow-y: auto;
+}
+.steps-list {
+  margin: 0 12px 10px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.step-row.future {
+  opacity: 0.55;
+  display: flex; /* ensure future rows are never hidden */
+}
+.step-row.done {
+  opacity: 0.4;
+  display: flex;
+}
