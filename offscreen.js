@@ -1,135 +1,75 @@
-let audioCtx   = null;
-let alarmTimer = null;
+/* ===== OFFSCREEN.JS — Audio Playback via Web Audio API ===== */
 
-// Pre-warm on load: unlock AudioContext before any alarm fires
-(function preWarm() {
-  try {
-    audioCtx = new AudioContext();
-    const buf = audioCtx.createBuffer(1, 1, 22050);
-    const s   = audioCtx.createBufferSource();
-    s.buffer  = buf;
-    s.connect(audioCtx.destination);
-    s.start(0);
-  } catch(e) {}
-})();
+let audioCtx = null;
 
-async function getAudioCtx() {
-  if (!audioCtx || audioCtx.state === 'closed') {
-    audioCtx = new AudioContext();
-  }
-  if (audioCtx.state === 'suspended') {
-    try { await audioCtx.resume(); } catch(e) {}
-  }
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new AudioContext();
   return audioCtx;
 }
 
-function singleBeep(ctx, freq, startTime, dur) {
-  try {
-    const osc  = ctx.createOscillator();
+function playBeep(freq, duration, count, gap) {
+  const ctx = getAudioCtx();
+  let t = ctx.currentTime;
+  for (let i = 0; i < count; i++) {
+    const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
     osc.type = 'sine';
     osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0.5, startTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, startTime + dur);
-    osc.start(startTime);
-    osc.stop(startTime + dur);
-  } catch(e) { console.warn('singleBeep error:', e); }
+    gain.gain.setValueAtTime(0.3, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + duration);
+    t += duration + gap;
+  }
 }
 
-async function playAlarmFor10Seconds(phaseIndex) {
-  if (alarmTimer) { clearInterval(alarmTimer); alarmTimer = null; }
-
-  const FREQ_PAIRS = [
-    [660, 780], [528, 660], [880, 1050],
-    [440, 550], [660, 800], [550, 660]
-  ];
-
-  const pair = FREQ_PAIRS[phaseIndex] || [880, 1050];
-  let ticks = 0;
-
-  async function tick() {
-    try {
-      const ctx = await getAudioCtx();
-      // Re-resume on every tick — context can re-suspend anytime
-      if (ctx.state !== 'running') await ctx.resume();
-      singleBeep(ctx, pair[0], ctx.currentTime,        0.18);
-      singleBeep(ctx, pair[1], ctx.currentTime + 0.22, 0.18);
-    } catch(e) { console.warn('Beep error:', e); }
-    ticks++;
-    if (ticks >= 10) { clearInterval(alarmTimer); alarmTimer = null; }
-  }
-
-  await tick();
-  alarmTimer = setInterval(tick, 1000);
+function playPhaseAlarm() {
+  // Three ascending beeps
+  const ctx = getAudioCtx();
+  const t = ctx.currentTime;
+  const notes = [440, 554, 659]; // A4, C#5, E5
+  notes.forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.25, t + i * 0.2);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.2 + 0.18);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t + i * 0.2);
+    osc.stop(t + i * 0.2 + 0.2);
+  });
 }
 
-
-/* ─── 10-second CF Submission Polling ─── */
-let cfPollInterval = null;
-
-async function pollCFOnce() {
-  try {
-    const data = await chrome.storage.local.get(
-      ['cfHandle','startTime','isRunning','cfLastAcId','cfAutoMode']
-    );
-    if (!data.isRunning || !data.startTime || !data.cfHandle) return;
-
-    const resp = await fetch(
-      'https://codeforces.com/api/user.status?handle=' +
-      encodeURIComponent(data.cfHandle) + '&from=1&count=10'
-    );
-    const json = await resp.json();
-    if (json.status !== 'OK') return;
-
-    const acSub = json.result.find(sub =>
-      sub.verdict === 'OK' &&
-      sub.creationTimeSeconds * 1000 > data.startTime &&
-      String(sub.id) !== String(data.cfLastAcId)
-    );
-    if (!acSub) return;
-
-    // New AC found — save to prevent double-fire
-    await chrome.storage.local.set({ cfLastAcId: String(acSub.id) });
-
-    // Notify background to handle stop + notification
-    chrome.runtime.sendMessage({
-      type:          'CF_AC_FOUND',
-      problemName:   acSub.problem.name || 'Unknown',
-      submissionId:  String(acSub.id),
-      autoMode:      !!data.cfAutoMode,
-      startTime:     data.startTime
-    }).catch(() => {});
-
-  } catch(e) { /* network error — silent */ }
+function playCelebration() {
+  // Victory fanfare: ascending arpeggio
+  const ctx = getAudioCtx();
+  const t = ctx.currentTime;
+  const notes = [523, 659, 784, 1047]; // C5, E5, G5, C6
+  notes.forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.3, t + i * 0.15);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.15 + 0.3);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t + i * 0.15);
+    osc.stop(t + i * 0.15 + 0.35);
+  });
 }
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.type === 'PING') {
-    sendResponse({ ok: true });
-    return true;
+// Listen for messages from background
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === 'PLAY_ALARM') {
+    if (msg.alarmType === 'celebration') {
+      playCelebration();
+    } else {
+      playPhaseAlarm();
+    }
   }
-  if (msg.type === 'START_CF_POLL') {
-    if (cfPollInterval) clearInterval(cfPollInterval);
-    cfPollInterval = setInterval(pollCFOnce, 10000);
-    pollCFOnce(); // immediate first check
-    sendResponse({ ok: true });
-    return true;
-  }
-  if (msg.type === 'STOP_CF_POLL') {
-    if (cfPollInterval) { clearInterval(cfPollInterval); cfPollInterval = null; }
-    sendResponse({ ok: true });
-    return true;
-  }
-  if (msg.type === 'PLAY_PHASE_ALARM') {
-    playAlarmFor10Seconds(msg.phaseIndex || 0);
-    sendResponse({ ok: true });
-  }
-  if (msg.type === 'STOP_ALARM') {
-    if (alarmTimer) { clearInterval(alarmTimer); alarmTimer = null; }
-    if (audioCtx)  { audioCtx.close(); audioCtx = null; }
-    sendResponse({ ok: true });
-  }
-  return true;
 });

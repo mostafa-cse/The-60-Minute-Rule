@@ -1,330 +1,687 @@
-const STEPS = [
-  { id:1, name:"Reconnaissance",     start:0,  tip:"Read the problem twice. Do NOT touch the keyboard." },
-  { id:2, name:"Observation",        start:5,  tip:"Pen & paper only. Draw cases. Find the invariant." },
-  { id:3, name:"Attack It",          start:25, tip:"Break your logic: N=1, all zeros, sorted array." },
-  { id:4, name:"Code It",            start:35, tip:"Logic survived? Only NOW touch the keyboard." },
-  { id:5, name:"The Struggle",       start:45, tip:"Debug or rethink. Write what you know. Isolate the gap." },
-  { id:6, name:"Editorial Protocol", start:60, tip:"Read ONLY the first hint. Close tab. Wait 30 min." }
-];
-const PHASE_COLORS = ["#58a6ff","#d2a8ff","#ff7b72","#39d353","#ffa657","#e3b341"];
+/* ===== THE 60-MINUTE RULE — BACKGROUND SERVICE WORKER ===== */
 
-function getStepIndex(m) {
-  const s = [0,5,25,35,45,60];
-  for (let i = s.length-1; i >= 0; i--) { if (m >= s[i]) return i; }
+const PHASES = [
+  { name: 'Reconnaissance', start: 0,  end: 5,  color: '#4FC3F7', tip: 'Read the problem twice. Do NOT touch the keyboard.' },
+  { name: 'Observation',    start: 5,  end: 25, color: '#81C784', tip: 'Pen & paper only. Draw cases. Find the invariant.' },
+  { name: 'Attack It',      start: 25, end: 35, color: '#FFD54F', tip: 'Break your logic: N=1, all zeros, sorted array.' },
+  { name: 'Code It',        start: 35, end: 45, color: '#FF8A65', tip: 'Logic survived? Only NOW touch the keyboard.' },
+  { name: 'The Struggle',   start: 45, end: 60, color: '#E57373', tip: 'Debug or rethink. Write what you know. Isolate the gap.' },
+  { name: 'Editorial Protocol', start: 60, end: 999, color: '#B0BEC5', tip: 'Read ONLY the first hint. Close tab. Wait 30 min.' }
+];
+
+function getPhase(elapsedMin) {
+  for (let i = PHASES.length - 1; i >= 0; i--) {
+    if (elapsedMin >= PHASES[i].start) return i;
+  }
   return 0;
 }
 
-/* ── Offscreen ── */
+/* ===== ICON DRAWING ===== */
+function drawIcon(text, bgColor) {
+  const sizes = [16, 32];
+  const imageData = {};
+  for (const size of sizes) {
+    const canvas = new OffscreenCanvas(size, size);
+    const ctx = canvas.getContext('2d');
+    // Background
+    ctx.fillStyle = bgColor || '#333';
+    ctx.beginPath();
+    ctx.roundRect(0, 0, size, size, size * 0.2);
+    ctx.fill();
+    // Text
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const fontSize = text.length <= 2 ? size * 0.55 : size * 0.38;
+    ctx.font = `bold ${fontSize}px system-ui`;
+    ctx.fillText(text, size / 2, size / 2 + 1);
+    imageData[size] = ctx.getImageData(0, 0, size, size);
+  }
+  chrome.action.setIcon({ imageData: { 16: imageData[16], 32: imageData[32] } });
+}
+
+function resetIcon() {
+  chrome.action.setIcon({ path: { 16: 'icons/icon16.png', 48: 'icons/icon48.png', 128: 'icons/icon128.png' } });
+}
+
+/* ===== OFFSCREEN DOCUMENT ===== */
+let offscreenCreating = null;
 async function ensureOffscreen() {
+  const existing = await chrome.offscreen.hasDocument().catch(() => false);
+  if (existing) return;
+  if (offscreenCreating) { await offscreenCreating; return; }
+  offscreenCreating = chrome.offscreen.createDocument({
+    url: 'offscreen.html',
+    reasons: ['AUDIO_PLAYBACK'],
+    justification: 'Play phase transition alarm sounds'
+  });
+  await offscreenCreating;
+  offscreenCreating = null;
+}
+
+async function playAlarm(type) {
   try {
-    const contexts = await chrome.runtime.getContexts({
-      contextTypes: ['OFFSCREEN_DOCUMENT']
-    });
-    if (contexts.length === 0) {
-      await chrome.offscreen.createDocument({
-        url:           chrome.runtime.getURL('offscreen.html'),
-        reasons:       ['AUDIO_PLAYBACK'],
-        justification: 'Play phase alarm beep for 10 seconds'
+    await ensureOffscreen();
+    chrome.runtime.sendMessage({ type: 'PLAY_ALARM', alarmType: type || 'phase' });
+  } catch (e) { /* ignore */ }
+}
+
+/* ===== TIMER STATE ===== */
+async function getState() {
+  return new Promise(r => chrome.storage.local.get(null, d => r(d)));
+}
+
+async function setState(obj) {
+  return new Promise(r => chrome.storage.local.set(obj, r));
+}
+
+/* ===== CF POLLING ===== */
+async function pollCF() {
+  const s = await getState();
+  if (!s.isRunning || s.isPaused || s.solved || !s.cfHandle || !s.cfAutoMode) return;
+
+  try {
+    const res = await fetch(`https://codeforces.com/api/user.status?handle=${s.cfHandle}&from=1&count=5`);
+    const data = await res.json();
+    if (data.status !== 'OK' || !data.result) return;
+
+    const startTime = s.startTime;
+    for (const sub of data.result) {
+      if (sub.verdict !== 'OK') continue;
+      if (sub.creationTimeSeconds * 1000 < startTime) continue;
+      if (s.cfLastAcId && sub.id <= s.cfLastAcId) continue;
+
+      // AC found!
+      const now = Date.now();
+      const pauseAcc = s.pauseAccumulated || 0;
+      const elapsedMs = now - startTime - pauseAcc;
+      const elapsedSec = Math.max(0, Math.floor(elapsedMs / 1000));
+      const elapsedMin = Math.floor(elapsedSec / 60);
+      const phaseIdx = getPhase(elapsedMin);
+      const problemName = `${sub.problem.contestId}${sub.problem.index} - ${sub.problem.name}`;
+      const timeStr = `${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s`;
+      const tags = sub.problem.tags || [];
+      const rating = sub.problem.rating || 0;
+
+      // Stop timer
+      await setState({
+        isRunning: false,
+        isPaused: false,
+        solved: true,
+        cfLastAcId: sub.id,
+        lastSolve: {
+          problem: problemName,
+          time: elapsedSec,
+          timeStr,
+          phase: phaseIdx + 1,
+          source: 'auto',
+          tags,
+          rating,
+          date: new Date().toISOString()
+        }
       });
+
+      // Clear alarms
+      chrome.alarms.clear('icon-tick');
+      chrome.alarms.clear('cf-poll');
+      chrome.alarms.clear('quote-rotate');
+      for (let i = 1; i <= 6; i++) chrome.alarms.clear(`phase-${i}`);
+
+      // Update icon
+      drawIcon('DONE', '#66BB6A');
+
+      // Play celebration
+      await playAlarm('celebration');
+
+      // Save to history
+      await saveToHistory({
+        problem: problemName,
+        time: elapsedSec,
+        timeStr,
+        phase: phaseIdx + 1,
+        source: 'auto',
+        tags,
+        rating,
+        date: new Date().toISOString()
+      });
+
+      // Auto-check Rule of 10
+      await r10AutoCheck(elapsedSec);
+
+      // Track weakness tags
+      await trackWeakness(tags, elapsedSec, true);
+
+      // Update daily goal
+      await incrementDailyGoal();
+
+      // Notification
+      chrome.notifications.create('cf-ac-' + sub.id, {
+        type: 'basic',
+        iconUrl: 'icons/icon128.png',
+        title: '🎉 Accepted! Timer Stopped',
+        message: `${problemName} solved in ${timeStr} · Click to start next`,
+        requireInteraction: true
+      });
+
+      // Notify popup
+      chrome.runtime.sendMessage({
+        type: 'CF_AC_FOUND',
+        problem: problemName,
+        timeStr,
+        elapsedSec,
+        phase: phaseIdx + 1
+      }).catch(() => {});
+
+      return;
     }
-    // Ping-pong: poll until offscreen document responds (up to 2 seconds)
-    for (let i = 0; i < 20; i++) {
-      try {
-        await chrome.runtime.sendMessage({ type: 'PING' });
-        return; // offscreen is ready
-      } catch(e) {
-        await new Promise(r => setTimeout(r, 100));
+  } catch (e) { /* network error, ignore */ }
+}
+
+/* ===== SAVE TO HISTORY ===== */
+async function saveToHistory(entry) {
+  const s = await getState();
+  let history = s.history || [];
+  history.unshift(entry);
+  if (history.length > 10) history = history.slice(0, 10);
+
+  // Update total solved
+  const totalSolvedAllTime = (s.totalSolvedAllTime || 0) + 1;
+
+  // Update heatmap
+  const heatmap = s.heatmapData || {};
+  const today = new Date().toISOString().slice(0, 10);
+  if (!heatmap[today]) heatmap[today] = { count: 0, totalTime: 0 };
+  heatmap[today].count++;
+  heatmap[today].totalTime += entry.time;
+
+  await setState({ history, totalSolvedAllTime, heatmapData: heatmap });
+}
+
+/* ===== RULE OF 10 AUTO CHECK ===== */
+async function r10AutoCheck(elapsedSec) {
+  const s = await getState();
+  if (s.r10JustChecked) return; // prevent double-count
+  await setState({ r10JustChecked: true });
+
+  const elapsedMin = elapsedSec / 60;
+  if (elapsedMin <= 45) {
+    let streak = (s.r10Streak || 0) + 1;
+    let totalStreakSolves = (s.r10TotalStreakSolves || 0) + 1;
+    let freezeTokens = s.r10FreezeTokens || 0;
+    let masteredRatings = s.r10MasteredRatings || [];
+    let longestStreak = s.longestStreak || 0;
+    let mastered = false;
+
+    // Earn freeze token every 5 consecutive
+    if (totalStreakSolves % 5 === 0 && freezeTokens < 2) {
+      freezeTokens++;
+    }
+
+    if (streak > longestStreak) longestStreak = streak;
+
+    if (streak >= 10) {
+      mastered = true;
+      const rating = s.r10TargetRating || 1200;
+      if (!masteredRatings.includes(rating)) {
+        masteredRatings.push(rating);
       }
+      streak = 0;
+      totalStreakSolves = 0;
     }
-    console.warn('ensureOffscreen: offscreen did not respond after 2s');
-  } catch(e) {
-    console.warn('ensureOffscreen error:', e);
+
+    await setState({
+      r10Streak: streak,
+      r10TotalStreakSolves: totalStreakSolves,
+      r10FreezeTokens: freezeTokens,
+      r10MasteredRatings: masteredRatings,
+      longestStreak,
+      r10Mastered: mastered
+    });
   }
+  // >45 min: no change to streak
 }
 
-async function playPhaseAlarm(idx) {
-  await ensureOffscreen();
-  // Retry up to 3 times in case offscreen is still loading
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      await chrome.runtime.sendMessage({ type: 'PLAY_PHASE_ALARM', phaseIndex: idx });
-      return; // success
-    } catch(e) {
-      console.warn('playPhaseAlarm attempt', attempt + 1, 'failed:', e.message);
-      await new Promise(r => setTimeout(r, 300));
-    }
+/* ===== WEAKNESS TRACKING ===== */
+async function trackWeakness(tags, elapsedSec, solved) {
+  const s = await getState();
+  const wt = s.weaknessTags || {};
+  for (const tag of tags) {
+    if (!wt[tag]) wt[tag] = { count: 0, totalTime: 0, slowCount: 0 };
+    wt[tag].count++;
+    wt[tag].totalTime += elapsedSec;
+    if (elapsedSec > 30 * 60) wt[tag].slowCount++;
   }
-  console.error('playPhaseAlarm: all 5 attempts failed for phase', idx);
+  await setState({ weaknessTags: wt });
 }
 
-/* ── Icon drawing ── */
-function drawTimerIcon(elapsedSec, ci) {
-  const sz = 32, canvas = new OffscreenCanvas(sz, sz), ctx = canvas.getContext('2d');
-  const accent = PHASE_COLORS[ci] || '#39d353';
-  const min = Math.floor(elapsedSec / 60).toString();
+/* ===== DAILY GOAL ===== */
+async function incrementDailyGoal() {
+  const s = await getState();
+  const today = new Date().toISOString().slice(0, 10);
+  let dgProgress = s.dailyGoalProgress || {};
+  if (!dgProgress.date || dgProgress.date !== today) {
+    dgProgress = { date: today, count: 0 };
+  }
+  dgProgress.count++;
+  const goal = s.dailyGoal || 3;
 
-  // Background
-  ctx.fillStyle = '#0d1117';
-  ctx.fillRect(0, 0, sz, sz);
-
-  // Colored border
-  ctx.strokeStyle = accent;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(1, 1, sz - 2, sz - 2);
-
-  // Big minute number centered
-  ctx.fillStyle = accent;
-  ctx.font = 'bold 18px monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(min, sz / 2, sz / 2 - 4);
-
-  // Small "min" label below
-  ctx.fillStyle = accent + 'aa';
-  ctx.font = 'bold 8px monospace';
-  ctx.fillText('min', sz / 2, sz / 2 + 9);
-
-  return ctx.getImageData(0, 0, sz, sz);
-}
-function setTimerIcon(s,ci) {
-  try { chrome.action.setIcon({ imageData:{32: drawTimerIcon(s,ci)} }); } catch(e) {}
-}
-function resetIcon() { chrome.action.setIcon({ path:{'48':'icons/icon48.png'} }); }
-function setSolvedIcon() {
-  try {
-    const canvas = new OffscreenCanvas(32,32), ctx = canvas.getContext('2d');
-    ctx.fillStyle='#0d1117'; ctx.fillRect(0,0,32,32);
-    ctx.strokeStyle='#39d353'; ctx.lineWidth=2; ctx.strokeRect(1,1,30,30);
-    ctx.fillStyle='#39d353'; ctx.font='bold 10px sans-serif';
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText('DONE',16,16);
-    chrome.action.setIcon({ imageData:{32: ctx.getImageData(0,0,32,32)} });
-  } catch(e) {}
-}
-
-/* ══════════════════════════════════════
-   CF AUTO-DETECT: poll every 1 minute
-══════════════════════════════════════ */
-async function pollCFSubmissions() {
-  const data = await chrome.storage.local.get([
-    'cfHandle','startTime','isRunning','cfAutoMode','cfLastAcId'
-  ]);
-  if (!data.isRunning || !data.startTime || !data.cfHandle) return;
-
-  try {
-    const resp = await fetch(
-      'https://codeforces.com/api/user.status?handle=' +
-      encodeURIComponent(data.cfHandle) + '&from=1&count=10'
-    );
-    const json = await resp.json();
-    if (json.status !== 'OK') return;
-
-    const subs = json.result;
-    // Find first AC after timer started that we haven't notified about
-    const acSub = subs.find(sub =>
-      sub.verdict === 'OK' &&
-      sub.creationTimeSeconds * 1000 > data.startTime &&
-      String(sub.id) !== String(data.cfLastAcId)
-    );
-
-    if (!acSub) return;
-
-    const problemName = acSub.problem.name || 'Unknown';
-    const solvedAt    = Date.now();
-    const elapsedSec  = Math.floor((solvedAt - data.startTime) / 1000);
-    const min = Math.floor(elapsedSec/60), sec = elapsedSec%60;
-    const timeStr = min + 'm ' + sec + 's';
-
-    // Save so we don't notify twice
-    await chrome.storage.local.set({ cfLastAcId: String(acSub.id) });
-
-    if (data.cfAutoMode) {
-      /* ── AUTO MODE: stop timer silently, show notification ── */
-      await chrome.storage.local.set({
-        isRunning: false, solved: true, solvedAt,
-        cfLastAcId: String(acSub.id)
-      });
-      chrome.alarms.clearAll();
-      setSolvedIcon();
-
-      chrome.notifications.create('cf-auto-' + acSub.id, {
-        type: 'basic', iconUrl: 'icons/icon48.png',
-        title: '🎉 Accepted! Timer Auto-Stopped',
-        message: '"' + problemName + '" accepted in ' + timeStr + '! Open extension for next problem.',
-        priority: 2, requireInteraction: true
-      });
-
+  if (dgProgress.count >= goal) {
+    // Update day streak
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    let dayStreak = s.dailyGoalDayStreak || 0;
+    const lastGoalDate = s.lastGoalMetDate || '';
+    if (lastGoalDate === yesterday || lastGoalDate === today) {
+      if (lastGoalDate !== today) dayStreak++;
     } else {
-      /* ── MANUAL MODE: ask user with buttons ── */
-      chrome.notifications.create('cf-ac-' + acSub.id, {
-        type: 'basic', iconUrl: 'icons/icon48.png',
-        title: '🎉 Accepted on Codeforces!',
-        message: '"' + problemName + '" accepted in ' + timeStr + '. Mark as solved?',
-        buttons: [
-          { title: '✅ Mark Solved + Reset' },
-          { title: '⏩ Keep Timer Going' }
-        ],
-        priority: 2, requireInteraction: true
-      });
+      dayStreak = 1;
     }
+    await setState({
+      dailyGoalProgress: dgProgress,
+      dailyGoalDayStreak: dayStreak,
+      lastGoalMetDate: today
+    });
 
-  } catch(e) {
-    console.warn('CF poll error:', e);
+    chrome.notifications.create('daily-goal', {
+      type: 'basic',
+      iconUrl: 'icons/icon128.png',
+      title: '🎯 Daily Goal Complete!',
+      message: `You solved ${dgProgress.count} problems today!`
+    });
+  } else {
+    await setState({ dailyGoalProgress: dgProgress });
   }
 }
 
-/* ── Notification button clicks ── */
-
-// Open popup when "Start New Problem" notification is clicked
-chrome.notifications.onClicked.addListener((notifId) => {
-  if (notifId.startsWith('cf-auto-') || notifId.startsWith('cf-ac-')) {
-    chrome.action.openPopup().catch(() => {
-      // Fallback: if popup can't be opened programmatically, just clear notif
-    });
-    chrome.notifications.clear(notifId);
-  }
-});
-
-chrome.notifications.onButtonClicked.addListener((notifId, btnIdx) => {
-  if (!notifId.startsWith('cf-ac-')) return;
-  chrome.notifications.clear(notifId);
-
-  if (btnIdx === 0) {
-    // Mark Solved + Reset
-    const solvedAt = Date.now();
-    chrome.storage.local.get(['startTime'], (d) => {
-      chrome.storage.local.set({ isRunning:false, solved:true, solvedAt });
-      chrome.alarms.clearAll();
-      setSolvedIcon();
-    });
-  }
-  // btnIdx === 1 → Keep Going, do nothing
-});
-
-/* ── Alarms ── */
+/* ===== ALARM HANDLERS ===== */
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-  // Phase transition
-  if (alarm.name.startsWith('phase-')) {
-    const idx  = parseInt(alarm.name.split('-')[1]);
-    const step = STEPS[idx];
-    if (!step) return;
-    chrome.notifications.create('notif-' + Date.now(), {
-      type:'basic', iconUrl:'icons/icon48.png',
-      title:'⏰ Phase ' + step.id + ': ' + step.name,
-      message: step.tip, priority:2, requireInteraction:false
-    });
-    await playPhaseAlarm(idx);
-    chrome.storage.local.get(['startTime'], (d) => {
-      if (d.startTime) setTimerIcon(Math.floor((Date.now()-d.startTime)/1000), idx);
-    });
+  if (alarm.name === 'cf-poll') {
+    await pollCF();
+    return;
   }
 
-  // Minute icon tick
   if (alarm.name === 'icon-tick') {
-    chrome.storage.local.get(['startTime','isRunning'], (d) => {
-      if (!d.isRunning || !d.startTime) return;
-      const s = Math.floor((Date.now()-d.startTime)/1000);
-      setTimerIcon(s, getStepIndex(s/60));
-      chrome.alarms.create('icon-tick', { delayInMinutes:1 });
-    });
+    const s = await getState();
+    if (!s.isRunning || s.isPaused || s.solved) return;
+    const pauseAcc = s.pauseAccumulated || 0;
+    const elapsed = Date.now() - s.startTime - pauseAcc;
+    const min = Math.floor(elapsed / 60000);
+    const phaseIdx = getPhase(min);
+    drawIcon(String(min).padStart(2, '0'), PHASES[phaseIdx].color);
+    return;
   }
 
-  // cf-poll alarm deprecated — polling now handled by offscreen setInterval (10s)
-});
+  if (alarm.name.startsWith('phase-')) {
+    const s = await getState();
+    if (!s.isRunning || s.solved) return;
+    const phaseNum = parseInt(alarm.name.split('-')[1]);
+    const phase = PHASES[phaseNum - 1];
+    if (!phase) return;
 
-/* ── Messages from popup ── */
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    await playAlarm('phase');
 
-  if (msg.type === 'START_TIMER') {
-    const startTime = Date.now();
-    chrome.storage.local.set({ startTime, isRunning:true, solved:false, solvedAt:null, cfLastAcId:null });
-    chrome.alarms.clearAll();
-    STEPS.forEach((step, i) => {
-      if (i > 0) chrome.alarms.create('phase-' + i, { when: startTime + step.start*60*1000 });
+    chrome.notifications.create('phase-' + phaseNum, {
+      type: 'basic',
+      iconUrl: 'icons/icon128.png',
+      title: `⏰ Phase ${phaseNum}: ${phase.name}`,
+      message: phase.tip
     });
-    chrome.alarms.create('icon-tick', { delayInMinutes:1 });
-    // Start 10-second CF polling via offscreen document
-    chrome.storage.local.get(['cfHandle'], async (d) => {
-      if (d.cfHandle) {
-        await ensureOffscreen();
-        chrome.runtime.sendMessage({ type: 'START_CF_POLL' }).catch(() => {});
-      }
-    });
-    setTimerIcon(0, 0);
-    sendResponse({ ok:true, startTime });
+
+    chrome.runtime.sendMessage({
+      type: 'PHASE_CHANGE',
+      phase: phaseNum,
+      name: phase.name,
+      tip: phase.tip,
+      color: phase.color
+    }).catch(() => {});
+    return;
   }
 
-  if (msg.type === 'RESET_TIMER') {
-    chrome.storage.local.set({ startTime:null, isRunning:false, solved:false, solvedAt:null, cfLastAcId:null });
-    chrome.alarms.clearAll();
-    resetIcon();
-    chrome.runtime.sendMessage({ type: 'STOP_CF_POLL' }).catch(() => {});
-    sendResponse({ ok:true });
-  }
-
-
-  if (msg.type === 'CF_AC_FOUND') {
-    const { problemName, submissionId, autoMode, startTime } = msg;
-    const solvedAt   = Date.now();
-    const elapsedSec = startTime ? Math.floor((solvedAt - startTime) / 1000) : 0;
-    const timeStr    = Math.floor(elapsedSec / 60) + 'm ' + (elapsedSec % 60) + 's';
-    const stepIndex  = getStepIndex(elapsedSec / 60);
-    
-    // Stop CF polling
-    chrome.runtime.sendMessage({ type: 'STOP_CF_POLL' }).catch(() => {});
-
-    // Save to history immediately
-    chrome.storage.local.get(['history'], (d) => {
-      const history = d.history || [];
-      history.unshift({
-        problem: problemName || 'CF Problem',
-        time:    timeStr,
-        phase:   'Phase ' + (stepIndex + 1),
-        date:    new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      });
-      chrome.storage.local.set({ history: history.slice(0, 50) });
-    });
-
-    if (autoMode) {
-      // Auto mode: stop timer, mark solved, show "Start New Problem" notification
-      chrome.storage.local.set({
-        isRunning: false, solved: true, solvedAt,
-        cfLastAcId: submissionId
-      });
-      chrome.alarms.clearAll();
-      setSolvedIcon();
-      
-      chrome.notifications.create('cf-auto-' + submissionId, {
-        type: 'basic', iconUrl: 'icons/icon48.png',
-        title: '🎉 Accepted! Timer Auto-Stopped',
-        message: '"' + problemName + '" solved in ' + timeStr + 
-                 '! Click to start a new problem.',
-        priority: 2, requireInteraction: true
-      });
-    } else {
-      // Manual mode: ask user with buttons
-      chrome.notifications.create('cf-ac-' + submissionId, {
-        type: 'basic', iconUrl: 'icons/icon48.png',
-        title: '🎉 Accepted on Codeforces!',
-        message: '"' + problemName + '" solved in ' + timeStr + '. Mark as solved?',
-        buttons: [
-          { title: '✅ Mark Solved + Reset' },
-          { title: '⏩ Keep Timer Going'   }
-        ],
-        priority: 2, requireInteraction: true
+  if (alarm.name === 'idle-reminder') {
+    const s = await getState();
+    if (!s.isRunning) {
+      chrome.notifications.create('idle', {
+        type: 'basic',
+        iconUrl: 'icons/icon128.png',
+        title: '💡 Ready for a problem?',
+        message: 'You haven\'t started a problem in a while. Let\'s go!'
       });
     }
-    sendResponse({ ok: true });
+    return;
+  }
+
+  if (alarm.name === 'daily-streak-reminder') {
+    const s = await getState();
+    const today = new Date().toISOString().slice(0, 10);
+    const dgProgress = s.dailyGoalProgress || {};
+    const goal = s.dailyGoal || 3;
+    if (!dgProgress.date || dgProgress.date !== today || dgProgress.count < goal) {
+      chrome.notifications.create('streak-remind', {
+        type: 'basic',
+        iconUrl: 'icons/icon128.png',
+        title: '🔥 Keep your streak alive today!',
+        message: `You've solved ${dgProgress.count || 0}/${goal} problems today.`
+      });
+    }
+    return;
+  }
+});
+
+/* ===== MESSAGE HANDLERS ===== */
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === 'START_TIMER') {
+    handleStartTimer(msg).then(r => sendResponse(r));
     return true;
   }
+  if (msg.type === 'STOP_TIMER') {
+    handleStopTimer(msg).then(r => sendResponse(r));
+    return true;
+  }
+  if (msg.type === 'PAUSE_TIMER') {
+    handlePauseTimer().then(r => sendResponse(r));
+    return true;
+  }
+  if (msg.type === 'RESUME_TIMER') {
+    handleResumeTimer().then(r => sendResponse(r));
+    return true;
+  }
+  if (msg.type === 'RESET_TIMER') {
+    handleResetTimer().then(r => sendResponse(r));
+    return true;
+  }
+  if (msg.type === 'MANUAL_SOLVE') {
+    handleManualSolve(msg).then(r => sendResponse(r));
+    return true;
+  }
+  if (msg.type === 'GET_STATE') {
+    getState().then(r => sendResponse(r));
+    return true;
+  }
+  if (msg.type === 'R10_EDITORIAL') {
+    handleEditorial().then(r => sendResponse(r));
+    return true;
+  }
+  if (msg.type === 'R10_MANUAL_SOLVE') {
+    r10AutoCheck(msg.elapsedSec || 0).then(() => sendResponse({ ok: true }));
+    return true;
+  }
+  if (msg.type === 'R10_CHANGE_RATING') {
+    setState({ r10Streak: 0, r10TotalStreakSolves: 0, r10TargetRating: msg.rating, r10JustChecked: false })
+      .then(() => sendResponse({ ok: true }));
+    return true;
+  }
+  if (msg.type === 'USE_FREEZE') {
+    handleUseFreeze().then(r => sendResponse(r));
+    return true;
+  }
+  if (msg.type === 'SAVE_HISTORY_ENTRY') {
+    saveToHistory(msg.entry).then(() => sendResponse({ ok: true }));
+    return true;
+  }
+  if (msg.type === 'PLAY_ALARM') {
+    // Forward to offscreen
+    return false;
+  }
+  return false;
+});
 
-  if (msg.type === 'MARK_SOLVED') {
-    const solvedAt = Date.now();
-    chrome.storage.local.set({ isRunning:false, solved:true, solvedAt });
-    chrome.alarms.clearAll();
-    setSolvedIcon();
-    sendResponse({ ok:true, solvedAt });
+async function handleStartTimer() {
+  const now = Date.now();
+  await setState({
+    startTime: now,
+    isRunning: true,
+    isPaused: false,
+    solved: false,
+    pauseAccumulated: 0,
+    pauseCount: 0,
+    pauseStartTime: null,
+    cfLastAcId: null,
+    r10JustChecked: false,
+    lastSolve: null
+  });
+
+  // Schedule phase alarms
+  const phaseMinutes = [5, 25, 35, 45, 60];
+  for (let i = 0; i < phaseMinutes.length; i++) {
+    chrome.alarms.create(`phase-${i + 2}`, { delayInMinutes: phaseMinutes[i] });
   }
 
-  return true;
+  // Icon tick every minute
+  chrome.alarms.create('icon-tick', { periodInMinutes: 1 });
+
+  // CF polling every ~3 seconds (minimum Chrome alarm is 0.5 min, so we use setInterval via keep-alive)
+  const s = await getState();
+  if (s.cfHandle && s.cfAutoMode) {
+    // Use alarm with 0.5 min for CF polling (Chrome minimum)
+    // For more frequent polling, popup will handle it
+    chrome.alarms.create('cf-poll', { periodInMinutes: 0.5 });
+  }
+
+  // Set idle reminder
+  chrome.alarms.create('idle-reminder', { delayInMinutes: 120 });
+
+  // Initial icon
+  drawIcon('00', PHASES[0].color);
+
+  return { ok: true, startTime: now };
+}
+
+async function handleStopTimer() {
+  await setState({ isRunning: false, isPaused: false });
+  chrome.alarms.clear('icon-tick');
+  chrome.alarms.clear('cf-poll');
+  chrome.alarms.clear('quote-rotate');
+  for (let i = 1; i <= 6; i++) chrome.alarms.clear(`phase-${i}`);
+  return { ok: true };
+}
+
+async function handlePauseTimer() {
+  const s = await getState();
+  if (!s.isRunning || s.isPaused) return { ok: false };
+  if ((s.pauseCount || 0) >= 2) return { ok: false, reason: 'max_pauses' };
+
+  await setState({
+    isPaused: true,
+    pauseStartTime: Date.now()
+  });
+
+  drawIcon('⏸', '#666');
+  return { ok: true };
+}
+
+async function handleResumeTimer() {
+  const s = await getState();
+  if (!s.isRunning || !s.isPaused) return { ok: false };
+
+  const pausedDuration = Date.now() - (s.pauseStartTime || Date.now());
+  const newAccumulated = (s.pauseAccumulated || 0) + pausedDuration;
+  const newPauseCount = (s.pauseCount || 0) + 1;
+
+  await setState({
+    isPaused: false,
+    pauseStartTime: null,
+    pauseAccumulated: newAccumulated,
+    pauseCount: newPauseCount
+  });
+
+  // Restore icon
+  const elapsed = Date.now() - s.startTime - newAccumulated;
+  const min = Math.floor(elapsed / 60000);
+  const phaseIdx = getPhase(min);
+  drawIcon(String(min).padStart(2, '0'), PHASES[phaseIdx].color);
+
+  return { ok: true, pauseCount: newPauseCount };
+}
+
+async function handleResetTimer() {
+  await setState({
+    startTime: null,
+    isRunning: false,
+    isPaused: false,
+    solved: false,
+    pauseAccumulated: 0,
+    pauseCount: 0,
+    pauseStartTime: null,
+    lastSolve: null,
+    r10JustChecked: false
+  });
+
+  chrome.alarms.clear('icon-tick');
+  chrome.alarms.clear('cf-poll');
+  chrome.alarms.clear('quote-rotate');
+  for (let i = 1; i <= 6; i++) chrome.alarms.clear(`phase-${i}`);
+
+  resetIcon();
+  return { ok: true };
+}
+
+async function handleManualSolve(msg) {
+  const s = await getState();
+  if (!s.isRunning || s.solved) return { ok: false };
+
+  const now = Date.now();
+  const pauseAcc = s.pauseAccumulated || 0;
+  const elapsedMs = now - s.startTime - pauseAcc;
+  const elapsedSec = Math.max(0, Math.floor(elapsedMs / 1000));
+  const elapsedMin = Math.floor(elapsedSec / 60);
+  const phaseIdx = getPhase(elapsedMin);
+  const timeStr = `${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s`;
+
+  await setState({
+    isRunning: false,
+    isPaused: false,
+    solved: true,
+    lastSolve: {
+      problem: msg.problem || 'Manual Solve',
+      time: elapsedSec,
+      timeStr,
+      phase: phaseIdx + 1,
+      source: 'manual',
+      tags: [],
+      rating: 0,
+      date: new Date().toISOString()
+    }
+  });
+
+  chrome.alarms.clear('icon-tick');
+  chrome.alarms.clear('cf-poll');
+  chrome.alarms.clear('quote-rotate');
+  for (let i = 1; i <= 6; i++) chrome.alarms.clear(`phase-${i}`);
+
+  drawIcon('DONE', '#66BB6A');
+  await playAlarm('celebration');
+
+  // Save to history
+  const entry = {
+    problem: msg.problem || 'Manual Solve',
+    time: elapsedSec,
+    timeStr,
+    phase: phaseIdx + 1,
+    source: 'manual',
+    tags: [],
+    rating: 0,
+    date: new Date().toISOString()
+  };
+
+  // Don't save yet — wait for reflection
+  // The popup will call SAVE_HISTORY_ENTRY after reflection
+
+  // Auto-check Rule of 10
+  await r10AutoCheck(elapsedSec);
+  await incrementDailyGoal();
+
+  return { ok: true, entry };
+}
+
+async function handleEditorial() {
+  const s = await getState();
+  let streak = 0;
+  let freezeTokens = s.r10FreezeTokens || 0;
+  let usedFreeze = false;
+
+  // Check if freeze token available and user wants to use it
+  // Freeze is handled separately via USE_FREEZE message
+
+  await setState({
+    r10Streak: 0,
+    r10TotalStreakSolves: 0
+  });
+
+  return { ok: true, streak: 0 };
+}
+
+async function handleUseFreeze() {
+  const s = await getState();
+  let freezeTokens = s.r10FreezeTokens || 0;
+  if (freezeTokens <= 0) return { ok: false, reason: 'no_tokens' };
+
+  freezeTokens--;
+  await setState({ r10FreezeTokens: freezeTokens });
+  return { ok: true, freezeTokens };
+}
+
+/* ===== NOTIFICATION CLICK ===== */
+chrome.notifications.onClicked.addListener((notifId) => {
+  chrome.action.openPopup().catch(() => {
+    // openPopup may not be available in all contexts
+  });
+  chrome.notifications.clear(notifId);
+});
+
+/* ===== INSTALL / STARTUP ===== */
+chrome.runtime.onInstalled.addListener(() => {
+  // Set daily streak reminder at 9 PM local (approximate)
+  chrome.alarms.create('daily-streak-reminder', { periodInMinutes: 1440 });
+  // Set idle reminder
+  chrome.alarms.create('idle-reminder', { delayInMinutes: 120, periodInMinutes: 120 });
+
+  // Initialize defaults
+  chrome.storage.local.get(null, (s) => {
+    const defaults = {
+      cfAutoMode: true,
+      r10TargetRating: 1200,
+      r10Streak: 0,
+      r10FreezeTokens: 0,
+      r10MasteredRatings: [],
+      r10TotalStreakSolves: 0,
+      history: [],
+      totalSolvedAllTime: 0,
+      longestStreak: 0,
+      dailyGoal: 3,
+      dailyGoalProgress: {},
+      dailyGoalDayStreak: 0,
+      heatmapData: {},
+      weaknessTags: {},
+      ratingLog: [],
+      spacedRepetitionQueue: [],
+      theme: 'dark',
+      focusModeEnabled: false,
+      warmUpMode: false
+    };
+    const toSet = {};
+    for (const [k, v] of Object.entries(defaults)) {
+      if (s[k] === undefined) toSet[k] = v;
+    }
+    if (Object.keys(toSet).length) chrome.storage.local.set(toSet);
+  });
+});
+
+chrome.runtime.onStartup.addListener(async () => {
+  const s = await getState();
+  // Restore timer state if was running
+  if (s.isRunning && !s.solved) {
+    chrome.alarms.create('icon-tick', { periodInMinutes: 1 });
+    if (s.cfHandle && s.cfAutoMode) {
+      chrome.alarms.create('cf-poll', { periodInMinutes: 0.5 });
+    }
+    // Restore icon
+    const pauseAcc = s.pauseAccumulated || 0;
+    const elapsed = Date.now() - s.startTime - pauseAcc;
+    const min = Math.floor(elapsed / 60000);
+    if (s.isPaused) {
+      drawIcon('⏸', '#666');
+    } else {
+      const phaseIdx = getPhase(min);
+      drawIcon(String(min).padStart(2, '0'), PHASES[phaseIdx].color);
+    }
+  }
 });

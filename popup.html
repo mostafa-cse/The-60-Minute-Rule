@@ -1,188 +1,368 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=400">
   <title>The 60-Minute Rule</title>
-  <link rel="stylesheet" href="popup.css" />
+  <link rel="stylesheet" href="popup.css">
 </head>
 <body>
+  <!-- ===== TOP BAR ===== -->
+  <header class="top-bar">
+    <div class="app-title">⏱ The 60-Minute Rule</div>
+    <button id="themeToggle" class="icon-btn" title="Toggle theme">🌙</button>
+  </header>
 
-  <!-- Header -->
-  <div class="header">
-    <span class="logo">⏱</span>
-    <div>
-      <div class="header-title">The 60-Minute Rule</div>
-      <div class="header-sub">Competitive Programming Protocol</div>
-    </div>
-    <div class="tab-pills">
-      <button class="tab-pill active" id="tabTimer">Timer</button>
-      <button class="tab-pill" id="tabHistory">History</button>
-      <button class="tab-pill" id="tabRule10">Rule·10</button>
-      <button class="tab-pill" id="tabCF">CF</button>
-    </div>
-  </div>
+  <!-- ===== TAB NAV ===== -->
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="timer">🕐 Timer</button>
+    <button class="tab-btn" data-tab="history">📋 History <span id="historyBadge" class="tab-badge hidden"></span></button>
+    <button class="tab-btn" data-tab="rule10">🏆 Rule of 10 <span id="r10Badge" class="tab-badge hidden"></span></button>
+    <button class="tab-btn" data-tab="cf">⚡ CF</button>
+    <button class="tab-btn" data-tab="stats">📊 Stats</button>
+  </nav>
 
-    <!-- TIMER PANEL -->
-  <div id="panelTimer">
-    <div class="ring-wrap">
-      <svg width="160" height="160" viewBox="0 0 160 160">
-        <circle cx="80" cy="80" r="54" fill="none" stroke="#21262d" stroke-width="10"/>
-        <circle cx="80" cy="80" r="54" fill="none" stroke="var(--accent)" stroke-width="10"
-          stroke-dasharray="339.29" stroke-dashoffset="339.29"
-          stroke-linecap="round" transform="rotate(-90 80 80)" id="progressRing"/>
-      </svg>
-      <div class="ring-center">
-        <div class="ring-time" id="timerDisplay">00:00</div>
-        <div class="ring-label" id="ringLabel">Phase 1</div>
+  <!-- ===== TIMER TAB ===== -->
+  <section id="tab-timer" class="tab-panel active">
+    <!-- Daily Goal Bar -->
+    <div id="dailyGoalBar" class="daily-goal-bar hidden">
+      <div class="goal-label"><span id="goalText">0 / 3 problems</span></div>
+      <div class="goal-track"><div id="goalFill" class="goal-fill"></div></div>
+    </div>
+    <div id="dailyGoalBanner" class="banner banner-success hidden">🎯 Daily goal complete!</div>
+
+    <!-- Warm-up Mode -->
+    <div id="warmUpPanel" class="warmup-panel hidden">
+      <div class="warmup-header">💪 Warm-Up Mode</div>
+      <div class="warmup-timer" id="warmUpTimer">10:00</div>
+      <div class="warmup-problem" id="warmUpProblem"></div>
+      <div class="warmup-actions">
+        <button id="warmUpStartBtn" class="btn btn-accent">Start Warm-Up</button>
+        <button id="warmUpSkipBtn" class="btn btn-ghost">Skip → Real Problem</button>
       </div>
     </div>
-    <div class="phase-card" id="phaseCard">
-      <div class="phase-card-header">
-        <div class="phase-counter">
-          <span class="phase-counter-num" id="phaseNumCurrent">1</span>
-          <span class="phase-counter-sep">/6</span>
+
+    <!-- New Problem / Timer Area -->
+    <div id="timerIdle" class="timer-idle">
+      <div class="idle-icon">🚀</div>
+      <div class="idle-text">Ready for a new challenge?</div>
+      <button id="newProblemBtn" class="btn btn-primary btn-lg">New Problem</button>
+      <label class="warmup-toggle">
+        <input type="checkbox" id="warmUpToggle"> 💪 Warm-up first
+      </label>
+    </div>
+
+    <div id="timerRunning" class="timer-running hidden">
+      <!-- Focus Mode Indicator -->
+      <div id="focusModeIndicator" class="focus-indicator hidden">🎯 Focus Mode ON</div>
+
+      <!-- Phase Dots -->
+      <div class="phase-dots" id="phaseDots">
+        <span class="dot" data-phase="1"></span>
+        <span class="dot" data-phase="2"></span>
+        <span class="dot" data-phase="3"></span>
+        <span class="dot" data-phase="4"></span>
+        <span class="dot" data-phase="5"></span>
+        <span class="dot" data-phase="6"></span>
+      </div>
+
+      <!-- Timer Display -->
+      <div class="timer-display" id="timerDisplay">00:00</div>
+
+      <!-- Phase Card -->
+      <div class="phase-card" id="phaseCard">
+        <div class="phase-name" id="phaseName">Phase 1: Reconnaissance</div>
+        <div class="phase-range" id="phaseRange">0 – 5 min</div>
+        <div class="phase-tip" id="phaseTip">Read the problem twice. Do NOT touch the keyboard.</div>
+      </div>
+
+      <!-- Motivational Quote -->
+      <div class="quote-box" id="quoteBox">
+        <span class="quote-text" id="quoteText">"Understand before you solve."</span>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="timer-actions">
+        <button id="solvedBtn" class="btn btn-success">✅ Solved!</button>
+        <button id="pauseBtn" class="btn btn-warning">⏸ Pause</button>
+        <button id="resumeBtn" class="btn btn-accent hidden">▶ Resume</button>
+        <button id="resetBtn" class="btn btn-ghost">↺ Reset</button>
+      </div>
+      <div id="pauseInfo" class="pause-info hidden">Pauses: <span id="pauseCount">0</span>/2</div>
+
+      <!-- Focus Mode Toggle -->
+      <label class="focus-toggle">
+        <input type="checkbox" id="focusModeToggle"> 🎯 Focus Mode
+      </label>
+    </div>
+
+    <!-- Solved Banner -->
+    <div id="solvedBanner" class="banner banner-solved hidden">
+      <div class="solved-icon">🎉</div>
+      <div class="solved-problem" id="solvedProblem"></div>
+      <div class="solved-time" id="solvedTime"></div>
+      <button id="nextProblemBtn" class="btn btn-primary">New Problem</button>
+    </div>
+
+    <!-- Alarm Overlay -->
+    <div id="alarmOverlay" class="alarm-overlay hidden">
+      <div class="alarm-content">
+        <div class="alarm-phase" id="alarmPhase"></div>
+        <div class="alarm-tip" id="alarmTip"></div>
+      </div>
+    </div>
+
+    <!-- Post-Solve Reflection Modal -->
+    <div id="reflectionModal" class="modal hidden">
+      <div class="modal-content">
+        <h3>🎓 Post-Solve Reflection</h3>
+        <div class="reflection-q">
+          <label>Which phase was hardest?</label>
+          <div class="phase-select" id="reflectPhaseSelect">
+            <button class="phase-btn" data-rphase="1">P1</button>
+            <button class="phase-btn" data-rphase="2">P2</button>
+            <button class="phase-btn" data-rphase="3">P3</button>
+            <button class="phase-btn" data-rphase="4">P4</button>
+            <button class="phase-btn" data-rphase="5">P5</button>
+            <button class="phase-btn" data-rphase="6">P6</button>
+          </div>
         </div>
-        <div class="phase-badge" id="phaseBadge">Phase 1</div>
-      </div>
-      <div class="phase-name"  id="phaseName">Reconnaissance</div>
-      <div class="phase-range" id="phaseRange">0-5 min</div>
-      <div class="phase-tip"   id="phaseTip">Read the problem twice. Check constraints. Do NOT touch the keyboard.</div>
-      <div class="phase-quote" id="phaseQuote">"Understand before you act."</div>
-      <div class="phase-dots"  id="phaseDots"></div>
-      <div class="phase-next-hint" id="phaseNextHint"></div>
-    </div>
-    <div class="problem-input-wrap" id="problemInputWrap">
-      <input type="text" id="problemName" placeholder="Problem name (optional)" maxlength="60"/>
-    </div>
-    <div class="alarm-overlay" id="alarmOverlay">
-      <div class="alarm-bell">&#x1F514;</div>
-      <div class="alarm-phase" id="alarmPhase">Phase 2: Observation</div>
-      <div class="alarm-tip"   id="alarmTip">Pen and paper only.</div>
-      <div class="alarm-countdown" id="alarmCountdown">10</div>
-      <div class="alarm-label">seconds</div>
-    </div>
-    <div class="solved-banner hidden" id="solvedBanner">
-      Solved in <strong id="solvedTime">--:--</strong> — Ready for a new problem?
-    </div>
-    <div class="controls">
-      <button class="btn btn-start"         id="startBtn">&#x25B6; Start</button>
-      <button class="btn btn-solved hidden" id="solvedBtn">&#x2705; Solved!</button>
-      <button class="btn btn-reset  hidden" id="resetBtn">&#x21BA; Reset</button>
-    </div>
-  </div>
-  <!-- end panelTimer -->
-
-  <!-- ═══════════ HISTORY PANEL ═══════════ -->
-  <div id="panelHistory" class="hidden">
-    <div class="history-header">
-      <span>📋 Solve History</span>
-      <button class="btn-clear" id="clearHistory">Clear All</button>
-    </div>
-    <div class="history-list" id="historyList"></div>
-    <div class="history-empty hidden" id="historyEmpty">
-      No solves yet.<br/>Start your first problem! 🚀
-    </div>
-  </div>
-
-
-  <!-- ═══════════ RULE OF 10 PANEL ═══════════ -->
-  <div id="panelRule10" class="hidden">
-
-    <div class="r10-intro">
-      <div class="r10-intro-title">🏆 The Rule of 10</div>
-      <div class="r10-intro-desc">
-        Solve <strong class="highlight">10 problems in a row</strong> at a rating
-        within <strong class="highlight">45 minutes each</strong> — zero editorials.
-        Hit 10? You have mastered that rating. <strong class="highlight">Move up immediately.</strong>
+        <div class="reflection-q">
+          <label>What was the key insight?</label>
+          <input type="text" id="reflectInsight" placeholder="e.g. prefix sums, two pointers..." maxlength="100">
+        </div>
+        <div class="reflection-q">
+          <label>Confidence:</label>
+          <div class="confidence-select" id="reflectConfidence">
+            <button class="conf-btn" data-conf="low">😰</button>
+            <button class="conf-btn" data-conf="mid">😐</button>
+            <button class="conf-btn" data-conf="high">😎</button>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="reflectSaveBtn" class="btn btn-primary">Save & Continue</button>
+          <button id="reflectSkipBtn" class="btn btn-ghost">Skip</button>
+        </div>
       </div>
     </div>
 
-    <div class="r10-rating-row">
-      <span class="r10-rating-label">Target Rating:</span>
-      <select class="r10-rating-select" id="r10Rating">
-        <option>800</option><option>900</option>
-        <option>1000</option><option>1100</option>
-        <option selected>1200</option><option>1300</option>
-        <option>1400</option><option>1500</option>
-        <option>1600</option><option>1700</option>
-        <option>1800</option><option>1900</option>
-        <option>2000</option><option>2100</option>
-        <option>2200</option><option>2300</option>
-        <option>2400+</option>
+    <div class="shortcut-hint">⌨ Space = Start/Solved · Ctrl+Shift+T = Open</div>
+  </section>
+
+  <!-- ===== HISTORY TAB ===== -->
+  <section id="tab-history" class="tab-panel">
+    <div class="section-header">
+      <h2>📋 Solve History</h2>
+      <div class="header-actions">
+        <button id="exportCsvBtn" class="btn btn-sm btn-ghost">📤 CSV</button>
+        <button id="clearHistoryBtn" class="btn btn-sm btn-danger">Clear All</button>
+      </div>
+    </div>
+    <div id="personalBests" class="personal-bests hidden"></div>
+    <div id="historyList" class="history-list">
+      <div class="empty-state">No solves yet — start your first problem! 🚀</div>
+    </div>
+  </section>
+
+  <!-- ===== RULE OF 10 TAB ===== -->
+  <section id="tab-rule10" class="tab-panel">
+    <div class="section-header">
+      <h2>🏆 Rule of 10</h2>
+    </div>
+
+    <!-- Target Rating -->
+    <div class="r10-target">
+      <label>Target Rating:</label>
+      <select id="r10RatingSelect">
+        <option value="800">800</option>
+        <option value="900">900</option>
+        <option value="1000">1000</option>
+        <option value="1100">1100</option>
+        <option value="1200" selected>1200</option>
+        <option value="1300">1300</option>
+        <option value="1400">1400</option>
+        <option value="1500">1500</option>
+        <option value="1600">1600</option>
+        <option value="1700">1700</option>
+        <option value="1800">1800</option>
+        <option value="1900">1900</option>
+        <option value="2000">2000</option>
+        <option value="2100">2100</option>
+        <option value="2200">2200</option>
+        <option value="2400">2400</option>
       </select>
     </div>
 
-    <div class="r10-streak-wrap">
-      <div id="r10MasteryBannerSlot"></div>
-      <div class="r10-streak-number" id="r10StreakNum">0</div>
-      <div class="r10-streak-of">consecutive solves &nbsp;/&nbsp; goal: 10</div>
-      <div class="r10-dots" id="r10Dots"></div>
-      <div class="r10-hint">Each solve ≤ 45 min &middot; no editorial &middot; streak resets on editorial</div>
-    </div>
-
-    <div class="r10-actions">
-      <button class="btn-r10-solved" id="r10SolvedBtn">
-        ✅ &nbsp; Solved! &nbsp;(≤ 45 min · no editorial)
-      </button>
-      <button class="btn-r10-editorial" id="r10EditorialBtn">
-        📖 &nbsp; Used Editorial — Reset Streak to 0
-      </button>
-    </div>
-
-    <div class="r10-mastered-title">🏅 Mastered Ratings</div>
-    <div class="r10-mastered-badges" id="r10MasteredList">
-      <span class="r10-mastered-empty">None yet — start solving!</span>
-    </div>
-
-  </div>
-
-
-  <!-- ═══════════ CODEFORCES PANEL ═══════════ -->
-  <div id="panelCF" class="hidden">
-
-
-    <!-- Auto-detect toggle -->
-    <div class="cf-autodetect-wrap" id="cfAutoWrap">
-      <div class="cf-autodetect-info">
-        <div class="cf-autodetect-title">⚡ Auto-Detect Acceptance</div>
-        <div class="cf-autodetect-sub" id="cfAutoSub">
-          Polls CF every minute. Notifies when AC detected.
-        </div>
+    <!-- Streak Dots -->
+    <div class="streak-container">
+      <div class="streak-label">Streak: <span id="streakCount">0</span> / 10</div>
+      <div class="streak-dots" id="streakDots">
+        <span class="sdot"></span><span class="sdot"></span><span class="sdot"></span>
+        <span class="sdot"></span><span class="sdot"></span><span class="sdot"></span>
+        <span class="sdot"></span><span class="sdot"></span><span class="sdot"></span>
+        <span class="sdot"></span>
       </div>
-      <label class="cf-toggle">
-        <input type="checkbox" id="cfAutoToggle" />
-        <span class="cf-toggle-slider"></span>
+    </div>
+
+    <!-- Freeze Tokens -->
+    <div class="freeze-panel">
+      <span class="freeze-label">🧊 Freeze Tokens:</span>
+      <span id="freezeCount">0</span>/2
+      <button id="useFreezeBtn" class="btn btn-sm btn-accent" disabled>Use Freeze</button>
+    </div>
+
+    <!-- Manual Buttons -->
+    <div class="r10-actions">
+      <button id="r10SolvedBtn" class="btn btn-success">✅ Solved! (≤ 45 min)</button>
+      <button id="r10EditorialBtn" class="btn btn-warning">📖 Used Editorial</button>
+    </div>
+
+    <!-- Mastery Banner -->
+    <div id="masteryBanner" class="banner banner-mastery hidden">
+      <div class="mastery-icon">🎉</div>
+      <div class="mastery-text">Rating <span id="masteryRating"></span> MASTERED!</div>
+    </div>
+
+    <!-- Mastered Ratings -->
+    <div class="mastered-section">
+      <h3>🏅 Mastered Ratings</h3>
+      <div id="masteredList" class="mastered-list">
+        <div class="empty-state">No ratings mastered yet</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== CF TAB ===== -->
+  <section id="tab-cf" class="tab-panel">
+    <div class="section-header">
+      <h2>⚡ Codeforces</h2>
+    </div>
+
+    <!-- Profile -->
+    <div class="cf-profile-input">
+      <input type="text" id="cfHandleInput" placeholder="CF Handle (e.g. tourist)">
+      <button id="cfLoadBtn" class="btn btn-accent">Load</button>
+    </div>
+    <div id="cfProfile" class="cf-profile hidden">
+      <img id="cfAvatar" class="cf-avatar" src="icons/icon48.png" alt="avatar">
+      <div class="cf-info">
+        <div class="cf-handle" id="cfHandleDisplay"></div>
+        <div class="cf-rank" id="cfRankDisplay"></div>
+        <div class="cf-rating" id="cfRatingDisplay"></div>
+      </div>
+    </div>
+
+    <!-- Auto Mode -->
+    <div class="cf-mode">
+      <label class="toggle-label">
+        <input type="checkbox" id="cfAutoToggle" checked>
+        <span class="toggle-slider"></span>
+        <span id="cfModeLabel">⚡ Auto Mode</span>
       </label>
     </div>
-    <div class="cf-mode-badge" id="cfModeBadge">🟡 Manual Mode</div>
 
-    <!-- Username input -->
-    <div class="cf-username-wrap">
-      <div class="cf-username-row">
-        <input type="text" id="cfUsername"
-          placeholder="Codeforces handle (optional)"
-          maxlength="40" autocomplete="off" />
-        <button class="btn-cf-load" id="cfLoadBtn">Load</button>
-      </div>
-      <div class="cf-status" id="cfStatus"></div>
+    <!-- Contest Countdown -->
+    <div class="cf-contest" id="cfContest">
+      <div class="contest-header">🏁 Next Contest</div>
+      <div class="contest-name" id="contestName">Loading...</div>
+      <div class="contest-countdown" id="contestCountdown"></div>
+      <a id="contestLink" class="contest-link" href="#" target="_blank">Open on CF →</a>
     </div>
 
-    <!-- User info card (shown after load) -->
-    <div class="cf-user-card hidden" id="cfUserCard">
-      <div class="cf-user-left">
-        <img class="cf-avatar" id="cfAvatar" src="" alt="avatar" />
-        <div>
-          <div class="cf-handle"   id="cfHandle"></div>
-          <div class="cf-rank"     id="cfRank"></div>
-        </div>
+    <!-- Accountability Partner -->
+    <div class="cf-partner">
+      <div class="partner-header">🤝 Accountability Partner</div>
+      <div class="partner-input">
+        <input type="text" id="partnerHandleInput" placeholder="Friend's CF handle">
+        <button id="partnerLoadBtn" class="btn btn-sm btn-accent">Load</button>
       </div>
-      <div class="cf-rating-box">
-        <div class="cf-rating-num" id="cfRating">—</div>
-        <div class="cf-rating-lbl">rating</div>
+      <div id="partnerStats" class="partner-stats hidden">
+        <div id="partnerCompare"></div>
       </div>
     </div>
 
-  </div>
+    <!-- Weakness Detector -->
+    <div class="cf-weakness" id="cfWeakness">
+      <div class="weakness-header">🧠 Weakness Detector</div>
+      <div id="weaknessTags" class="weakness-tags">Solve 5+ problems to detect weaknesses</div>
+    </div>
+  </section>
+
+  <!-- ===== STATS TAB ===== -->
+  <section id="tab-stats" class="tab-panel">
+    <div class="section-header">
+      <h2>📊 Statistics</h2>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="statTotalSolved">0</div>
+        <div class="stat-label">Total Solved</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statAvgTime">--</div>
+        <div class="stat-label">Avg Time</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statSolveRate">--%</div>
+        <div class="stat-label">≤ 45min Rate</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statBestTime">--</div>
+        <div class="stat-label">Best Time</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statLongestStreak">0</div>
+        <div class="stat-label">Best Streak</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statDayStreak">0</div>
+        <div class="stat-label">Day Streak</div>
+      </div>
+    </div>
+
+    <!-- Phase Breakdown -->
+    <div class="stats-section">
+      <h3>Phase Breakdown</h3>
+      <div id="phaseBreakdown" class="phase-breakdown"></div>
+    </div>
+
+    <!-- Solve Heatmap -->
+    <div class="stats-section">
+      <h3>🗓️ Solve Heatmap</h3>
+      <div id="heatmapContainer" class="heatmap-container"></div>
+    </div>
+
+    <!-- Rating Progression -->
+    <div class="stats-section">
+      <h3>📈 Rating Progression</h3>
+      <div class="rating-input-row">
+        <input type="number" id="ratingInput" placeholder="Log current rating" min="0" max="4000">
+        <button id="logRatingBtn" class="btn btn-sm btn-accent">Log</button>
+      </div>
+      <div id="ratingChart" class="rating-chart"></div>
+      <div id="ratingGain" class="rating-gain hidden"></div>
+      <div id="ratingMilestones" class="rating-milestones"></div>
+    </div>
+
+    <!-- Problems per Rating -->
+    <div class="stats-section">
+      <h3>Problems per Rating</h3>
+      <div id="ratingBarChart" class="rating-bar-chart"></div>
+    </div>
+
+    <!-- Export -->
+    <div class="stats-section">
+      <h3>📤 Export & Backup</h3>
+      <div class="export-actions">
+        <button id="exportHistoryCsv" class="btn btn-sm btn-ghost">📤 History CSV</button>
+        <button id="exportR10Json" class="btn btn-sm btn-ghost">📤 Rule of 10 JSON</button>
+        <button id="importBackupBtn" class="btn btn-sm btn-ghost">📥 Import Backup</button>
+        <input type="file" id="importFileInput" accept=".json" class="hidden">
+      </div>
+    </div>
+  </section>
 
   <script src="cf.js"></script>
   <script src="rule10.js"></script>

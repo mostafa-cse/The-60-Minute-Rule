@@ -1,129 +1,118 @@
-/* ════════════════════════════════
-   THE RULE OF 10  —  rule10.js
-════════════════════════════════ */
+/* ===== RULE10.JS — Rule of 10 Streak/Mastery Logic ===== */
 
-function r10RenderDots(streak) {
-  var dots = document.getElementById("r10Dots");
-  if (!dots) return;
-  dots.innerHTML = "";
-  for (var i = 0; i < 10; i++) {
-    var dot = document.createElement("div");
-    dot.className = "r10-dot" + (i < streak ? " filled" : "");
-    if (i >= streak) dot.textContent = i + 1;
-    dots.appendChild(dot);
-  }
+/* 
+  Rule of 10:
+  - Solve ≤ 45 min → streak +1
+  - Solve > 45 min → no change
+  - Editorial used → streak = 0 (unless freeze token used)
+  - Change target rating → streak = 0
+  - 10 consecutive ≤ 45 min → mastery!
+  - 1 freeze token earned per 5 consecutive solves, max 2
+*/
+
+/* ===== RENDER STREAK DOTS ===== */
+function renderStreakDots(streak) {
+  const dots = document.querySelectorAll('#streakDots .sdot');
+  dots.forEach((dot, i) => {
+    dot.classList.toggle('filled', i < streak);
+  });
+  const countEl = document.getElementById('streakCount');
+  if (countEl) countEl.textContent = streak;
 }
 
-function r10RenderMastered(masteredRatings) {
-  var list = document.getElementById("r10MasteredList");
-  if (!list) return;
-  if (!masteredRatings || masteredRatings.length === 0) {
-    list.innerHTML = '<span class="r10-mastered-empty">None yet — start solving!</span>';
+/* ===== RENDER FREEZE TOKENS ===== */
+function renderFreezeTokens(count) {
+  const el = document.getElementById('freezeCount');
+  if (el) el.textContent = count;
+  const btn = document.getElementById('useFreezeBtn');
+  if (btn) btn.disabled = count <= 0;
+}
+
+/* ===== RENDER MASTERED RATINGS ===== */
+function renderMasteredRatings(ratings) {
+  const container = document.getElementById('masteredList');
+  if (!container) return;
+  if (!ratings || ratings.length === 0) {
+    container.innerHTML = '<div class="empty-state">No ratings mastered yet</div>';
     return;
   }
-  list.innerHTML = "";
-  masteredRatings.slice().sort(function(a,b){ return parseInt(a)-parseInt(b); })
-    .forEach(function(r) {
-      var badge = document.createElement("span");
-      badge.className = "r10-badge";
-      badge.textContent = "🏆 " + r;
-      list.appendChild(badge);
+  container.innerHTML = ratings
+    .sort((a, b) => a - b)
+    .map(r => `<span class="mastered-badge">⭐ ${r}</span>`)
+    .join('');
+}
+
+/* ===== CHECK & SHOW MASTERY BANNER ===== */
+function showMasteryBanner(rating) {
+  const banner = document.getElementById('masteryBanner');
+  const ratingEl = document.getElementById('masteryRating');
+  if (banner && ratingEl) {
+    ratingEl.textContent = rating;
+    banner.classList.remove('hidden');
+    setTimeout(() => banner.classList.add('hidden'), 8000);
+  }
+}
+
+/* ===== R10 UI STATE ===== */
+async function loadR10State() {
+  return new Promise(resolve => {
+    chrome.storage.local.get([
+      'r10Streak', 'r10TargetRating', 'r10FreezeTokens',
+      'r10MasteredRatings', 'r10Mastered', 'r10TotalStreakSolves'
+    ], (s) => {
+      const streak = s.r10Streak || 0;
+      const target = s.r10TargetRating || 1200;
+      const freeze = s.r10FreezeTokens || 0;
+      const mastered = s.r10MasteredRatings || [];
+      const justMastered = s.r10Mastered || false;
+
+      renderStreakDots(streak);
+      renderFreezeTokens(freeze);
+      renderMasteredRatings(mastered);
+
+      // Set target rating dropdown
+      const sel = document.getElementById('r10RatingSelect');
+      if (sel) sel.value = target;
+
+      // Update badge
+      const badge = document.getElementById('r10Badge');
+      if (badge && streak > 0) {
+        badge.textContent = streak;
+        badge.classList.remove('hidden');
+      }
+
+      // Check if mastery banner should fire
+      if (justMastered) {
+        showMasteryBanner(target);
+        chrome.storage.local.set({ r10Mastered: false });
+      }
+
+      resolve({ streak, target, freeze, mastered });
     });
-}
-
-function r10ShowMasteryBanner(rating) {
-  var slot = document.getElementById("r10MasteryBannerSlot");
-  if (!slot) return;
-  var nextRating = isNaN(parseInt(rating)) ? "higher" : parseInt(rating) + 100;
-  slot.innerHTML =
-    '<div class="r10-mastery-banner">' +
-      '<div class="r10-mastery-icon">🎉</div>' +
-      '<div class="r10-mastery-title">You have mastered ' + rating + '!</div>' +
-      '<div class="r10-mastery-desc">Move up to <strong class="highlight">' + nextRating + '</strong> immediately. You are ready.</div>' +
-    '</div>';
-  setTimeout(function() { slot.innerHTML = ""; }, 10000);
-}
-
-function r10SaveAndRender(r10) {
-  chrome.storage.local.set({ r10: r10 });
-  document.getElementById("r10StreakNum").textContent = r10.streak;
-  r10RenderDots(r10.streak);
-  r10RenderMastered(r10.masteredRatings);
-}
-
-function r10Load() {
-  chrome.storage.local.get(["r10"], function(data) {
-    var r10 = data.r10 || { rating: "1200", streak: 0, masteredRatings: [] };
-    var sel = document.getElementById("r10Rating");
-    if (sel) sel.value = r10.rating;
-    document.getElementById("r10StreakNum").textContent = r10.streak;
-    r10RenderDots(r10.streak);
-    r10RenderMastered(r10.masteredRatings);
   });
 }
 
-document.addEventListener("DOMContentLoaded", function() {
-
-  r10RenderDots(0);
-
-  // Tab: Rule of 10
-  var tabRule10 = document.getElementById("tabRule10");
-  if (tabRule10) {
-    tabRule10.addEventListener("click", function() {
-      document.querySelectorAll(".tab-pill").forEach(function(t) {
-        t.classList.remove("active");
-      });
-      tabRule10.classList.add("active");
-      document.getElementById("panelTimer").classList.add("hidden");
-      document.getElementById("panelHistory").classList.add("hidden");
-      document.getElementById("panelRule10").classList.remove("hidden");
-      r10Load();
-    });
-  }
-
-  // Rating change → reset streak for new rating
-  var r10RatingEl = document.getElementById("r10Rating");
-  if (r10RatingEl) {
-    r10RatingEl.addEventListener("change", function() {
-      chrome.storage.local.get(["r10"], function(data) {
-        var r10 = data.r10 || { rating: "1200", streak: 0, masteredRatings: [] };
-        r10.rating = r10RatingEl.value;
-        r10.streak = 0;
-        r10SaveAndRender(r10);
-      });
-    });
-  }
-
-  // ✅ Solved button
-  var r10SolvedBtn = document.getElementById("r10SolvedBtn");
-  if (r10SolvedBtn) {
-    r10SolvedBtn.addEventListener("click", function() {
-      chrome.storage.local.get(["r10"], function(data) {
-        var r10 = data.r10 || { rating: "1200", streak: 0, masteredRatings: [] };
-        r10.streak = (r10.streak || 0) + 1;
-        if (r10.streak >= 10) {
-          if (!r10.masteredRatings) r10.masteredRatings = [];
-          if (r10.masteredRatings.indexOf(r10.rating) === -1) {
-            r10.masteredRatings.push(r10.rating);
-          }
-          r10ShowMasteryBanner(r10.rating);
-          r10.streak = 0; // reset after mastery to start next rating
+/* ===== R10 EDITORIAL HANDLER (for popup) ===== */
+function r10HandleEditorial(useFreeze) {
+  return new Promise(async (resolve) => {
+    if (useFreeze) {
+      chrome.runtime.sendMessage({ type: 'USE_FREEZE' }, (res) => {
+        if (res && res.ok) {
+          renderFreezeTokens(res.freezeTokens);
+          resolve({ froze: true });
+        } else {
+          // No freeze available, reset streak
+          chrome.runtime.sendMessage({ type: 'R10_EDITORIAL' }, () => {
+            renderStreakDots(0);
+            resolve({ froze: false });
+          });
         }
-        r10SaveAndRender(r10);
       });
-    });
-  }
-
-  // 📖 Editorial button → reset streak
-  var r10EditorialBtn = document.getElementById("r10EditorialBtn");
-  if (r10EditorialBtn) {
-    r10EditorialBtn.addEventListener("click", function() {
-      chrome.storage.local.get(["r10"], function(data) {
-        var r10 = data.r10 || { rating: "1200", streak: 0, masteredRatings: [] };
-        r10.streak = 0;
-        r10SaveAndRender(r10);
+    } else {
+      chrome.runtime.sendMessage({ type: 'R10_EDITORIAL' }, () => {
+        renderStreakDots(0);
+        resolve({ froze: false });
       });
-    });
-  }
-
-});
+    }
+  });
+}
