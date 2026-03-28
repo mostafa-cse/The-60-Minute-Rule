@@ -1,223 +1,382 @@
-Features List : 
-🕐 TIMER TAB
-New Problem Flow
-☐ "New Problem" button shown on load and after every reset
-☐ Click New Problem → timer starts from 00:00
-☐ If CF handle saved → AC polling starts immediately
-☐ If no CF handle → prompt: "Save your CF handle in CF tab"
+# Codeforces Focus Timer
 
-Timer Running
-☐ Counts up from 00:00
-☐ Toolbar icon shows MM only (phase color changes per phase)
-☐ Phase dots fill left to right as time progresses
-☐ Phase name, range, tip update on each phase transition
-☐ Motivational quote rotates every 30 sec within phase
-☐ Alarm overlay appears for 3 sec on phase change
-☐ Alarm overlay dismisses immediately on click
+A productivity-first browser extension built for competitive programmers who want to stay focused, track solving habits, and build consistency on Codeforces.
 
-Auto-Stop via CF
-☐ CF API polled every 3 sec while timer is running
-☐ AC submission detected after timer start → timer stops
-☐ Problem name fetched directly from Codeforces API
-☐ Solved banner shows: problem name + elapsed time
-☐ Auto-saves to History with source "⚡ CF Auto"
-☐ Auto-checks Rule of 10 streak with actual elapsed time
-☐ Duplicate AC prevention via cfLastAcId
-☐ Notification: "🎉 Accepted! — [Problem] solved in Xm Ys"
+It combines a timed problem-solving workflow, automatic accepted-submission detection, a Rule of 10 streak system, solve history, reminders, statistics, and several focus-oriented tools to help you improve with structure and momentum.
 
-Manual Solve
-☐ ✅ Solved! button → stops timer immediately
-☐ Solved banner shows elapsed time
-☐ Saves entry to History with source "✋ Manual"
-☐ Auto-checks Rule of 10 streak with elapsed time
-☐ No double-count if CF AC already fired
+---
 
-Reset
-☐ ↺ Reset → timer back to 00:00
-☐ Clears solved banner, phase card, alarm overlay
-☐ Stops CF polling
-☐ Resets toolbar icon to default
-☐ Ready for next New Problem
+## What it does
 
+Codeforces Focus Timer turns every problem session into a guided workflow:
 
+- start a new problem with one click
+- track your solving time automatically
+- detect accepted submissions from Codeforces
+- record solved problems into history
+- manage a Rule of 10 streak based on fast solves
+- review progress through stats, notes, and export tools
+- stay focused with reminders, theme control, and keyboard shortcuts
 
-📋 HISTORY TAB
-☐ Every solve saved: problem name · phase reached · time · date
-☐ Source badge: "⚡ CF Auto" or "✋ Manual" (colored)
-☐ Most recent entry shown first
-☐ Max 10 entries stored (oldest auto-dropped)
-☐ Clear All → confirmation prompt → empties list
-☐ "No solves yet — start your first problem! 🚀" empty state
-☐ Each entry shows colored phase badge matching phase color
-☐ Personal best per rating shown at top of list
-☐ Inline 📝 note icon per entry → click → add/edit annotation
-☐ Notes included in CSV export
+The extension is designed for daily practice, contest preparation, and long-term skill building.
 
+---
 
+## Core features
 
-🏆 RULE OF 10 TAB
-Streak Logic
-☐ Solve ≤ 45 min → streak +1, dot fills green
-☐ Solve > 45 min → streak unchanged (no penalty, no reset)
-☐ 📖 Editorial used → streak resets to 0
-☐ Change target rating → streak resets to 0
+### Timer
+- New Problem button appears on load and after every reset
+- Timer starts from `00:00` when a new problem begins
+- If a Codeforces handle is saved, accepted-submission polling starts automatically
+- If no handle is saved, the user is prompted to save it in the CF tab
+- Timer counts upward continuously from `00:00`
+- Toolbar icon shows the current minute count
+- Phase color updates as time progresses
+- Phase dots fill from left to right
+- Phase name, range, and tip update on each transition
+- Motivational quotes rotate every 30 seconds within the current phase
+- Alarm overlay appears briefly on phase change
+- Alarm overlay can be dismissed immediately with a click
 
-Mastery
-☐ 10 consecutive ≤ 45 min solves → 🎉 mastery banner fires
-☐ Mastered rating badge added to 🏅 Mastered Ratings list
-☐ Streak resets to 0 → immediately ready for next rating
-☐ If tab closed at mastery → banner queued for next visit
+### Auto-stop via Codeforces
+- Codeforces API is polled every 3 seconds while the timer is running
+- When an accepted submission is detected after the timer starts, the timer stops automatically
+- Problem name is fetched directly from the Codeforces API
+- A solved banner appears with the problem name and elapsed time
+- The solve is auto-saved to history with source `⚡ CF Auto`
+- Rule of 10 streak is checked using the actual elapsed time
+- Duplicate accepted submissions are prevented with `cfLastAcId`
+- Notification appears in the format: `🎉 Accepted! — [Problem] solved in Xm Ys`
 
-Manual Buttons
-☐ ✅ Solved! (≤ 45 min) → streak +1
-☐ 📖 Used Editorial → streak = 0
-☐ Target Rating dropdown → change → streak = 0
+### Manual solve flow
+- `✅ Solved!` stops the timer immediately
+- Solved banner shows elapsed time
+- Entry is saved to history with source `✋ Manual`
+- Rule of 10 streak is checked using elapsed time
+- Prevents double counting if an accepted submission was already detected
 
-Auto-Integration
-☐ Every History save triggers r10AutoCheck(elapsedTime)
-☐ One streak increment per solve — no double-counting
-☐ Works for both CF Auto-stop and Manual Solved!
+### Reset flow
+- `↺ Reset` returns the timer to `00:00`
+- Clears solved banner, phase card, and alarm overlay
+- Stops Codeforces polling
+- Resets the toolbar icon to default
+- Prepares the extension for the next New Problem session
 
+---
 
+## History tab
 
-⚡ CF TAB
-Profile
-☐ Enter CF handle → click Load
-☐ Shows: avatar · handle · rank (rank color) · rating
-☐ Avatar fallback → icon48.png if image blocked
-☐ Handle saved → persists across popup open/close
+Every solve is stored in a compact and readable history log.
 
-Auto-Detect
-☐ Checkbox toggle: Auto Mode ON / Manual Mode
-☐ Auto ON → polls CF every 3 sec during active timer
-☐ AC found → timer stops, banner fires, history saved
-☐ Auto OFF → timer runs freely, no CF polling
-☐ Mode badge: "⚡ Auto" / "🟡 Manual"
-☐ Mode persisted to storage across sessions
+### History features
+- Saves problem name, phase reached, solve time, and date
+- Shows source badge:
+  - `⚡ CF Auto`
+  - `✋ Manual`
+- Most recent entry appears first
+- Stores up to 10 entries and automatically removes the oldest when full
+- Clear All includes a confirmation prompt
+- Empty state message appears when no solves are saved
+- Each entry includes a colored phase badge
+- Personal best per rating is shown at the top of the list
+- Inline note icon lets you add or edit annotations
+- Notes are included in CSV export
 
+---
 
+## Rule of 10 tab
 
-🔔 NOTIFICATIONS & ICON
-Notifications
-☐ Phase transition → "⏰ Phase N: [Name]" + tip (auto-dismiss)
-☐ CF AC found → "🎉 Accepted! Timer Stopped" (persistent)
-       Body: "[Problem] solved in Xm Ys · Click to start next"
-☐ Click notification → opens extension popup
-☐ Daily streak reminder → "🔥 Keep your streak alive today!"
-☐ Idle reminder → no problem started in 2 hrs → gentle nudge
-☐ All notifications use extension icon
+The Rule of 10 system is the heart of the extension.
 
-Toolbar Icon
-☐ Idle → default icon (icon48.png)
-☐ Timer running → MM in phase color (updates every minute)
-☐ Paused → "⏸" in grey
-☐ Solved → "DONE" in green
-☐ Reset → back to default icon
+### Streak logic
+- Solve within 45 minutes → streak increases by 1
+- Solve above 45 minutes → streak does not change
+- Using the editorial resets the streak to 0
+- Changing the target rating resets the streak to 0
 
+### Mastery flow
+- 10 consecutive solves within 45 minutes triggers a mastery banner
+- The mastered rating is added to the Mastered Ratings list
+- Streak resets to 0 and is immediately ready for the next rating
+- If the tab is closed at the moment of mastery, the banner is queued for the next visit
 
+### Manual controls
+- `✅ Solved!` within 45 minutes increases the streak
+- `📖 Used Editorial` resets the streak to 0
+- Changing the target rating resets the streak to 0
 
-💡 Feature Additions
-🧊 Streak Freeze
-☐ 1 freeze token earned per 5 consecutive solves
-☐ Use freeze → protects streak when Editorial used once
-☐ Freeze badge shown in Rule of 10 tab
-☐ Max 2 freeze tokens held at once
+### Auto-integration
+- Every history save triggers `r10AutoCheck(elapsedTime)`
+- Each solve counts only once
+- Works for both auto-detected solves and manual solves
 
-⏸ Pause & Resume
-☐ Pause button freezes timer mid-problem
-☐ Toolbar icon shows "⏸" while paused
-☐ Resume continues from exact paused time
-☐ Pause time NOT counted in solve time
-☐ Max 2 pauses per problem (prevents abuse)
+---
 
-📊 Stats Panel
-☐ Total problems solved (all time)
-☐ Average solve time (last 10 / all time)
-☐ Current solve rate: X% solved ≤ 45 min
-☐ Personal best solve time
-☐ Phase breakdown: most time spent in which phase
-☐ Problems solved per rating (mini bar chart)
-☐ Longest streak ever achieved
+## Codeforces tab
 
-📈 Rating Progression Tracker
-☐ Manually log CF rating after each session
-☐ Mini sparkline chart shows rating over time
-☐ "You've gained +X rating since using this extension"
-☐ Milestone badges: 1000 / 1200 / 1400 / 1600 / 1800+
+The CF tab stores profile and auto-detection settings.
 
-🎯 Daily Goal
-☐ Set daily solve goal: 1 / 2 / 3 / 5 problems
-☐ Progress bar shown at top of Timer tab
-☐ Goal met → "🎯 Daily goal complete!" banner
-☐ Notification at day end if goal not met
-☐ Streak tracks consecutive days goal was met
+### Profile
+- Enter a Codeforces handle and click Load
+- Shows avatar, handle, rank, and rating
+- Falls back to `icon48.png` if the avatar image cannot be loaded
+- Saved handle persists across popup open and close
 
-📤 Export & Backup
-☐ Export History → .csv (problem, time, phase, date, note)
-☐ Export Rule of 10 data → .json
-☐ Import backup → restore from .json file
+### Auto-detect mode
+- Toggle between Auto Mode and Manual Mode
+- Auto Mode polls Codeforces every 3 seconds while the timer is active
+- Accepted submission stops the timer, fires the banner, and saves the result
+- Manual Mode disables Codeforces polling and lets the timer run freely
+- Mode badge shows `⚡ Auto` or `🟡 Manual`
+- Mode setting is persisted across sessions
 
-🌙 Theme
-☐ Dark mode (default)
-☐ Light mode toggle
-☐ Theme persisted to storage
+---
 
-⌨️ Keyboard Shortcuts
-☐ Ctrl+Shift+T → open popup (already in manifest)
-☐ Space → Start / Solved! when popup focused
-☐ Shortcut hint shown in Timer tab footer
+## Notifications and toolbar icon
 
+### Notifications
+- Phase transition notification: `⏰ Phase N: [Name]` plus tip
+- Accepted solve notification: `🎉 Accepted! Timer Stopped`
+- Notification body includes the problem name, elapsed time, and next action hint
+- Clicking the notification opens the extension popup
+- Daily streak reminder encourages consistency
+- Idle reminder appears when no problem has been started for 2 hours
+- All notifications use the extension icon
 
+### Toolbar icon states
+- Idle: default icon
+- Running: minute counter in phase color
+- Paused: `⏸` in gray
+- Solved: `DONE` in green
+- Reset: returns to default
 
-🆕 New Productivity Features
-🧠 Weakness Detector
-☐ Tracks which CF problem tags appear in unsolved / slow solves
-☐ Shows: "You struggle most with: dp · graphs · math"
-☐ CF tab filters problems by weak tag automatically
-☐ Updates after every 5 solves
+---
 
-🗓️ Solve Heatmap
-☐ GitHub-style calendar grid in Stats Panel
-☐ Each day colored by number of problems solved
-☐ Hover → shows "X problems · avg Ym Zs"
-☐ Builds habit visibility over weeks/months
+## Productivity features
 
-🔁 Spaced Repetition Queue
-☐ Tag any history entry as "Review Later"
-☐ Extension reminds you to re-solve it after 3 / 7 / 14 days
-☐ Re-solve must be done without notes for it to count
-☐ "Review due" badge shown on History tab icon
+### Streak freeze
+- Earn 1 freeze token for every 5 consecutive solves
+- Use a freeze to protect the streak when editorial is used once
+- Freeze badge shown in the Rule of 10 tab
+- Maximum of 2 freeze tokens can be held at once
 
-🏁 Contest Countdown
-☐ Shows next upcoming Codeforces contest in CF tab
-☐ Countdown timer: "Next CF Round in 2d 4h 15m"
-☐ Contest name + type (Div 1 / Div 2 / Educational)
-☐ Click → opens CF contest page
-☐ Fetches from CF API: contest.list
+### Pause and resume
+- Pause timer mid-problem
+- Toolbar icon changes to `⏸`
+- Resume continues from the exact paused time
+- Pause time is excluded from solve time
+- Maximum of 2 pauses per problem
 
-🧩 Focus Mode
-☐ Toggle "Focus Mode" when timer starts
-☐ Blocks navigation to CF editorial/solution pages
-☐ Shows warning overlay if editorial URL detected
-☐ Override allowed with 10-sec countdown (prevents impulse)
+### Stats panel
+- Total problems solved
+- Average solve time for last 10 and all time
+- Current solve rate for solves within 45 minutes
+- Personal best solve time
+- Phase breakdown by time spent
+- Problems solved per rating shown as a mini bar chart
+- Longest streak ever achieved
 
-💪 Warm-Up Mode
-☐ Before starting a real problem, do a 10-min warm-up
-☐ Shows one easy problem (rating - 200) to get in flow state
-☐ Warm-up timer separate from main 60-min timer
-☐ "Warm-up done → Start real problem" button appears
+### Rating progression tracker
+- Manually log your Codeforces rating after each session
+- Mini sparkline chart shows rating over time
+- Displays gained rating since using the extension
+- Milestone badges for 1000 / 1200 / 1400 / 1600 / 1800+
 
-🤝 Accountability Partner
-☐ Enter a friend's CF handle
-☐ Compare solve streaks side by side
-☐ "Your friend solved 3 problems today — you've solved 1"
-☐ Leaderboard view: you vs partner vs personal best
+### Daily goal
+- Set a daily solve target: 1 / 2 / 3 / 5 problems
+- Progress bar shown at the top of the Timer tab
+- Goal completion triggers a banner
+- End-of-day reminder appears if the goal is not met
+- Tracks consecutive days when the goal is met
 
-🎓 Post-Solve Reflection
-☐ After every solve (before saving to history) →
-    quick 3-question micro-journal appears:
-    1. "Which phase was hardest?" (tap to select)
-    2. "What was the key insight?" (1 line text)
-    3. "Confidence: 😰 😐 😎" (tap rating)
-☐ Reflection saved with history entry
-☐ Aggregate shown in Stats: "You struggle most in Phase 2"
+### Export and backup
+- Export history as CSV
+- Export Rule of 10 data as JSON
+- Import JSON backup to restore data
+
+### Theme
+- Dark mode as default
+- Light mode toggle
+- Theme persists across sessions
+
+### Keyboard shortcuts
+- `Ctrl + Shift + T` opens the popup
+- `Space` starts a problem or marks it solved when the popup is focused
+- Shortcut hint shown in the Timer tab footer
+
+---
+
+## Advanced learning tools
+
+### Weakness detector
+- Tracks tags that appear most often in unsolved or slow solves
+- Highlights patterns such as `dp`, `graphs`, or `math`
+- Can automatically filter Codeforces problems by weak tag
+- Updates after every 5 solves
+
+### Solve heatmap
+- GitHub-style calendar heatmap in the Stats panel
+- Each day is colored by the number of problems solved
+- Hovering shows problems solved and average solve time
+- Helps visualize long-term habit consistency
+
+### Spaced repetition queue
+- Mark history entries as `Review Later`
+- Reminds you to re-solve them after 3, 7, or 14 days
+- Re-solving must be done without notes to count
+- `Review due` badge appears on the History tab icon
+
+### Contest countdown
+- Displays the next upcoming Codeforces contest
+- Shows remaining time such as `Next CF Round in 2d 4h 15m`
+- Includes contest name and type
+- Clicking opens the contest page
+- Fetches contest data from the Codeforces API
+
+### Focus mode
+- Can be enabled when a timer starts
+- Blocks navigation to editorial or solution pages
+- Shows a warning overlay if an editorial URL is detected
+- Allows override with a 10-second countdown
+
+### Warm-up mode
+- Lets the user do a 10-minute warm-up before the main session
+- Suggests an easier problem around rating -200
+- Uses a separate warm-up timer
+- After warm-up, a button appears to start the real problem
+
+### Accountability partner
+- Save a friend’s Codeforces handle
+- Compare solve streaks side by side
+- See today’s progress versus your partner
+- Leaderboard view supports you, your partner, and personal best
+
+### Post-solve reflection
+- After every solve, a short 3-question micro-journal appears
+- Captures:
+  - hardest phase
+  - key insight
+  - confidence level
+- Reflection is saved with the history entry
+- Aggregated insights appear in Stats, such as which phase is most difficult
+
+---
+
+## Data stored locally
+
+The extension stores data such as:
+- Codeforces handle
+- auto/manual mode
+- timer state
+- history entries
+- notes
+- Rule of 10 streak data
+- mastered ratings
+- freeze tokens
+- rating log
+- daily goals
+- partner handle
+- reflection answers
+- theme settings
+
+---
+
+## Suggested folder structure
+
+```txt
+extension/
+├─ manifest.json
+├─ popup.html
+├─ popup.js
+├─ styles.css
+├─ background.js
+├─ content.js
+├─ icons/
+├─ assets/
+└─ README.md
+````
+
+---
+
+## Installation
+
+### From source
+
+1. Clone this repository.
+2. Open `chrome://extensions`.
+3. Enable **Developer mode**.
+4. Click **Load unpacked**.
+5. Select the project folder.
+
+### First-time setup
+
+1. Open the extension popup.
+2. Go to the **CF** tab.
+3. Enter your Codeforces handle.
+4. Load your profile.
+5. Start a new problem from the **Timer** tab.
+
+---
+
+## How the workflow feels
+
+1. Click **New Problem**
+2. Solve the problem while the timer runs
+3. Let the extension detect the accepted submission, or press **Solved!**
+4. Review the solved banner and phase timing
+5. Save notes, inspect history, and watch your streak grow
+
+---
+
+## Ideal use cases
+
+* daily Codeforces practice
+* contest preparation
+* post-contest upsolving
+* rating-based problem training
+* focus and consistency tracking
+* structured self-improvement
+
+---
+
+## Planned spirit of the project
+
+This extension is meant to make competitive programming feel less random and more measurable.
+
+It encourages:
+
+* faster starts
+* fewer distractions
+* clear problem-solving habits
+* repeated review
+* discipline over time
+* visible progress
+
+---
+
+## Contributing
+
+Contributions are welcome.
+
+Good areas for improvement:
+
+* UI polish
+* performance optimization
+* better charts and analytics
+* more Codeforces integrations
+* accessibility improvements
+* bug fixes and edge-case handling
+
+---
+
+## License
+
+Add your preferred license here, such as MIT, Apache 2.0, or Proprietary.
+
+---
+
+## Acknowledgements
+
+* Codeforces for the public API and ecosystem
+* Competitive programming communities for the productivity inspiration
+* Open-source browser extension tooling and libraries
