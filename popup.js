@@ -42,6 +42,22 @@ function fmtTime(sec) {
 function fmtTimeStr(sec) {
   return `${Math.floor(sec / 60)}m ${sec % 60}s`;
 }
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getElapsedSeconds(state) {
+  if (!state || !state.startTime) return 0;
+  const pauseAcc = state.pauseAccumulated || 0;
+  const now = state.isPaused && state.pauseStartTime ? state.pauseStartTime : Date.now();
+  return Math.max(0, Math.floor((now - state.startTime - pauseAcc) / 1000));
+}
 
 function sendMsg(msg) {
   return new Promise(r => chrome.runtime.sendMessage(msg, r));
@@ -82,9 +98,7 @@ function startTimerTick() {
     }
     if (s.isPaused) return;
 
-    const pauseAcc = s.pauseAccumulated || 0;
-    const elapsed = Date.now() - s.startTime - pauseAcc;
-    const elapsedSec = Math.max(0, Math.floor(elapsed / 1000));
+    const elapsedSec = getElapsedSeconds(s);
     const elapsedMin = elapsedSec / 60;
     const phaseIdx = getPhaseIdx(elapsedMin);
 
@@ -166,7 +180,6 @@ function startCFPolling() {
         cfPollInterval = null;
         return;
       }
-      // Trigger background to poll
       try {
         const res = await fetch(`https://codeforces.com/api/user.status?handle=${state.cfHandle}&from=1&count=5`);
         const data = await res.json();
@@ -177,18 +190,12 @@ function startCFPolling() {
           if (sub.creationTimeSeconds * 1000 < state.startTime) continue;
           if (state.cfLastAcId && sub.id <= state.cfLastAcId) continue;
 
-          // AC found — let background handle it
-          // Background's alarm-based polling should catch it, but this is faster
-          const pauseAcc = state.pauseAccumulated || 0;
-          const elapsedMs = Date.now() - state.startTime - pauseAcc;
-          const elapsedSec = Math.max(0, Math.floor(elapsedMs / 1000));
-          const phaseIdx = getPhaseIdx(elapsedSec / 60);
-          const problemName = `${sub.problem.contestId}${sub.problem.index} - ${sub.problem.name}`;
+          // AC found!
+          const elapsedSec = getElapsedSeconds(state);
           const timeStr = fmtTimeStr(elapsedSec);
-          const tags = sub.problem.tags || [];
-          const rating = sub.problem.rating || 0;
+          const problemName = `${sub.problem.contestId}${sub.problem.index} - ${sub.problem.name}`;
 
-          // Stop locally
+          // Stop polling locally
           clearInterval(timerInterval);
           clearInterval(cfPollInterval);
           clearInterval(quoteInterval);
@@ -196,35 +203,19 @@ function startCFPolling() {
           cfPollInterval = null;
           quoteInterval = null;
 
-          // Update storage
-          const entry = {
-            problem: problemName,
-            time: elapsedSec,
-            timeStr,
-            phase: phaseIdx + 1,
-            source: 'auto',
-            tags,
-            rating,
-            date: new Date().toISOString()
-          };
-
-          chrome.storage.local.set({
-            isRunning: false,
-            isPaused: false,
-            solved: true,
-            cfLastAcId: sub.id,
-            lastSolve: entry
+          // Process AC in background so all solve operations run reliably
+          await sendMsg({
+            type: 'CF_AC_DETECTED',
+            sub,
+            elapsedSec
           });
 
-          // Show reflection then save
-          pendingSolveEntry = entry;
+          showSolvedBanner(problemName, timeStr);
+
+          // Prompt for reflection then update entry
           showReflectionModal(() => {
-            entry.reflection = { ...reflectionData };
-            sendMsg({ type: 'SAVE_HISTORY_ENTRY', entry });
-            showSolvedBanner(problemName, timeStr);
+            sendMsg({ type: 'UPDATE_REFLECTION', reflection: { ...reflectionData } });
           });
-
-          sendMsg({ type: 'STOP_TIMER' });
           return;
         }
       } catch (e) { /* ignore */ }
@@ -245,7 +236,7 @@ async function startNewProblem() {
   // Check CF handle
   const s = await sendMsg({ type: 'GET_STATE' });
   if (!s.cfHandle && s.cfAutoMode) {
-    // Prompt to save handle
+    alert('Save your CF handle in the CF tab to enable auto AC detection!');
     switchToTab('cf');
     return;
   }
@@ -336,11 +327,9 @@ $('solvedBtn').addEventListener('click', async () => {
     cfPollInterval = null;
     quoteInterval = null;
 
-    pendingSolveEntry = res.entry;
+    showSolvedBanner(res.entry.problem, res.entry.timeStr);
     showReflectionModal(() => {
-      res.entry.reflection = { ...reflectionData };
-      sendMsg({ type: 'SAVE_HISTORY_ENTRY', entry: res.entry });
-      showSolvedBanner(res.entry.problem, res.entry.timeStr);
+      sendMsg({ type: 'UPDATE_REFLECTION', reflection: { ...reflectionData } });
     });
   }
 });
@@ -448,12 +437,24 @@ function loadDailyGoalBar() {
     $('dailyGoalBar').classList.remove('hidden');
     $('goalText').textContent = `${count} / ${goal} problems`;
     $('goalFill').style.width = `${Math.min(100, (count / goal) * 100)}%`;
+    if ($('dailyGoalSelect')) {
+      $('dailyGoalSelect').value = String(goal);
+    }
 
     if (count >= goal) {
       $('dailyGoalBanner').classList.remove('hidden');
     } else {
       $('dailyGoalBanner').classList.add('hidden');
     }
+  });
+}
+
+if ($('dailyGoalSelect')) {
+  $('dailyGoalSelect').addEventListener('change', (e) => {
+    const val = parseInt(e.target.value) || 3;
+    chrome.storage.local.set({ dailyGoal: val }, () => {
+      loadDailyGoalBar();
+    });
   });
 }
 
@@ -475,11 +476,11 @@ function showReflectionModal(callback) {
   $('reflectSaveBtn').onclick = () => {
     reflectionData.insight = $('reflectInsight').value;
     $('reflectionModal').classList.add('hidden');
-    callback();
+    if (callback) callback();
   };
   $('reflectSkipBtn').onclick = () => {
     $('reflectionModal').classList.add('hidden');
-    callback();
+    if (callback) callback();
   };
 }
 
@@ -517,33 +518,58 @@ function loadHistory() {
 
     // Render entries
     container.innerHTML = history.map((entry, i) => {
-      const phaseColor = PHASES[Math.min(entry.phase - 1, 5)].color;
-      const phaseName = `P${entry.phase}`;
+      const phaseIdx = Math.max(0, Math.min((entry.phase || 1) - 1, 5));
+      const phaseColor = PHASES[phaseIdx].color;
+      const phaseName = `P${entry.phase || (phaseIdx + 1)}`;
       const sourceClass = entry.source === 'auto' ? 'auto' : 'manual';
       const sourceLabel = entry.source === 'auto' ? '⚡ CF Auto' : '✋ Manual';
       const date = new Date(entry.date).toLocaleDateString();
-      const isReviewTagged = srQueue.some(q => q.entryDate === entry.date);
+      const srItem = srQueue.find(q => q.entryDate === entry.date);
+      const isReviewTagged = !!srItem;
       const noteText = entry.note || '';
-      const reflectionText = entry.reflection ?
-        `Phase ${entry.reflection.phase || '?'} hardest · ${entry.reflection.confidence || '?'} confidence` : '';
+
+      let reflectionText = '';
+      if (entry.reflection) {
+        const parts = [];
+        if (entry.reflection.phase) parts.push(`P${entry.reflection.phase} hardest`);
+        if (entry.reflection.confidence) parts.push(`${entry.reflection.confidence} confidence`);
+        if (entry.reflection.insight && entry.reflection.insight.trim()) {
+          parts.push(`"${entry.reflection.insight.trim()}"`);
+        }
+        if (parts.length > 0) reflectionText = `🎓 ${parts.join(' · ')}`;
+      }
+
+      let reviewStatus = '';
+      if (srItem) {
+        const now = Date.now();
+        const nextIdx = srItem.nextReviewIdx || 0;
+        if (nextIdx < srItem.reviewDates.length) {
+          const isDue = srItem.reviewDates[nextIdx] <= now;
+          const days = [3, 7, 14][nextIdx] || 14;
+          reviewStatus = isDue ? `⚠️ Review Due (${days}d)` : `⏳ Next review in ${days}d`;
+        } else {
+          reviewStatus = '✅ Completed all reviews';
+        }
+      }
 
       return `
         <div class="history-entry">
           <span class="h-phase-badge" style="background:${phaseColor}">${phaseName}</span>
           <div class="h-details">
-            <div class="h-problem" title="${entry.problem}">${entry.problem}</div>
+            <div class="h-problem" title="${escapeHtml(entry.problem)}">${escapeHtml(entry.problem)}</div>
             <div class="h-meta">
-              <span>${entry.timeStr}</span>
+              <span>${escapeHtml(entry.timeStr)}</span>
               <span>${date}</span>
               <span class="h-source ${sourceClass}">${sourceLabel}</span>
-              ${entry.rating ? `<span>${entry.rating}</span>` : ''}
+              ${entry.rating ? `<span>${escapeHtml(entry.rating)}</span>` : ''}
+              ${reviewStatus ? `<span class="h-review-status">${escapeHtml(reviewStatus)}</span>` : ''}
             </div>
-            ${noteText ? `<div class="h-note-text">📝 ${noteText}</div>` : ''}
-            ${reflectionText ? `<div class="h-note-text">🎓 ${reflectionText}</div>` : ''}
+            ${noteText ? `<div class="h-note-text">📝 ${escapeHtml(noteText)}</div>` : ''}
+            ${reflectionText ? `<div class="h-note-text">${escapeHtml(reflectionText)}</div>` : ''}
           </div>
           <div class="h-actions">
             <button class="h-note-btn" data-idx="${i}" title="Add note">📝</button>
-            <button class="h-review-btn ${isReviewTagged ? 'tagged' : ''}" data-idx="${i}" title="Review later">🔁</button>
+            <button class="h-review-btn ${isReviewTagged ? 'tagged' : ''}" data-idx="${i}" title="${isReviewTagged ? 'Click to advance review interval / clear' : 'Review later'}">🔁</button>
           </div>
         </div>
       `;
@@ -561,7 +587,7 @@ function loadHistory() {
       });
     });
 
-    // Review Later handlers
+    // Review Later handlers (advances through intervals 3d -> 7d -> 14d -> done)
     container.querySelectorAll('.h-review-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.dataset.idx);
@@ -602,9 +628,16 @@ function renderPersonalBests(history) {
 function toggleReviewLater(entry) {
   chrome.storage.local.get(['spacedRepetitionQueue'], (s) => {
     let queue = s.spacedRepetitionQueue || [];
-    const exists = queue.findIndex(q => q.entryDate === entry.date);
-    if (exists >= 0) {
-      queue.splice(exists, 1);
+    const idx = queue.findIndex(q => q.entryDate === entry.date);
+    if (idx >= 0) {
+      const item = queue[idx];
+      const nextIdx = (item.nextReviewIdx || 0) + 1;
+      if (nextIdx >= item.reviewDates.length) {
+        // Completed all spaced reviews
+        queue.splice(idx, 1);
+      } else {
+        item.nextReviewIdx = nextIdx;
+      }
     } else {
       const now = Date.now();
       queue.push({
@@ -652,10 +685,15 @@ function exportHistoryCSV() {
   chrome.storage.local.get(['history'], (s) => {
     const history = s.history || [];
     if (history.length === 0) return alert('No history to export.');
-    const header = 'Problem,Time,Phase,Date,Source,Rating,Note\n';
-    const rows = history.map(e =>
-      `"${e.problem}","${e.timeStr}","Phase ${e.phase}","${new Date(e.date).toLocaleDateString()}","${e.source}","${e.rating || ''}","${(e.note || '').replace(/"/g, '""')}"`
-    ).join('\n');
+    const header = 'Problem,Time,Phase,Date,Source,Rating,Note,HardestPhase,Confidence,Insight\n';
+    const rows = history.map(e => {
+      const prob = (e.problem || '').replace(/"/g, '""');
+      const note = (e.note || '').replace(/"/g, '""');
+      const rPhase = e.reflection && e.reflection.phase ? `Phase ${e.reflection.phase}` : '';
+      const rConf = e.reflection && e.reflection.confidence ? e.reflection.confidence : '';
+      const rInsight = e.reflection && e.reflection.insight ? e.reflection.insight.replace(/"/g, '""') : '';
+      return `"${prob}","${e.timeStr}","Phase ${e.phase || 1}","${new Date(e.date).toLocaleDateString()}","${e.source}","${e.rating || ''}","${note}","${rPhase}","${rConf}","${rInsight}"`;
+    }).join('\n');
     downloadFile(header + rows, 'solve-history.csv', 'text/csv');
   });
 }
@@ -703,11 +741,11 @@ function downloadFile(content, filename, type) {
 }
 
 /* ===== RULE OF 10 TAB ===== */
-$('r10RatingSelect').addEventListener('change', (e) => {
+$('r10RatingSelect').addEventListener('change', async (e) => {
   const rating = parseInt(e.target.value);
   if (confirm('Changing target rating will reset your streak to 0. Continue?')) {
-    sendMsg({ type: 'R10_CHANGE_RATING', rating });
-    renderStreakDots(0);
+    await sendMsg({ type: 'R10_CHANGE_RATING', rating });
+    await loadR10State();
   } else {
     chrome.storage.local.get(['r10TargetRating'], (s) => {
       e.target.value = s.r10TargetRating || 1200;
@@ -715,12 +753,9 @@ $('r10RatingSelect').addEventListener('change', (e) => {
   }
 });
 
-$('r10SolvedBtn').addEventListener('click', () => {
-  sendMsg({ type: 'R10_MANUAL_SOLVE', elapsedSec: 44 * 60 }); // ≤ 45 min
-  chrome.storage.local.get(['r10Streak'], (s) => {
-    renderStreakDots((s.r10Streak || 0) + 1);
-  });
-  setTimeout(loadR10State, 500);
+$('r10SolvedBtn').addEventListener('click', async () => {
+  await sendMsg({ type: 'R10_MANUAL_SOLVE', elapsedSec: 44 * 60 }); // ≤ 45 min
+  await loadR10State();
 });
 
 $('r10EditorialBtn').addEventListener('click', async () => {
@@ -732,13 +767,16 @@ $('r10EditorialBtn').addEventListener('click', async () => {
   } else {
     await r10HandleEditorial(false);
   }
-  setTimeout(loadR10State, 500);
+  await loadR10State();
 });
 
 $('useFreezeBtn').addEventListener('click', async () => {
-  const res = await sendMsg({ type: 'USE_FREEZE' });
-  if (res && res.ok) {
-    renderFreezeTokens(res.freezeTokens);
+  const s = await sendMsg({ type: 'GET_STATE' });
+  if ((s.r10FreezeTokens || 0) <= 0) return;
+  const conf = confirm('Use 1 freeze token now to protect against an editorial reset?');
+  if (conf) {
+    await r10HandleEditorial(true);
+    await loadR10State();
   }
 });
 
@@ -839,7 +877,7 @@ $('partnerLoadBtn').addEventListener('click', async () => {
     $('partnerCompare').innerHTML = `
       <div style="display:flex;justify-content:space-between;margin-bottom:6px">
         <div><strong>You:</strong> ${myCount} today</div>
-        <div><strong>${stats.handle}:</strong> ${stats.todayCount} today</div>
+        <div><strong>${escapeHtml(stats.handle)}:</strong> ${stats.todayCount} today</div>
       </div>
       <div style="font-size:10px;color:var(--text-muted)">
         ${stats.todayCount > myCount ? `Your friend solved ${stats.todayCount - myCount} more! Keep going! 💪` :
@@ -852,9 +890,10 @@ $('partnerLoadBtn').addEventListener('click', async () => {
 
 /* ===== WEAKNESS DETECTOR ===== */
 function loadWeakness() {
-  chrome.storage.local.get(['weaknessTags', 'totalSolvedAllTime'], (s) => {
+  chrome.storage.local.get(['weaknessTags', 'totalSolvedAllTime', 'r10TargetRating'], (s) => {
     const wt = s.weaknessTags || {};
     const total = s.totalSolvedAllTime || 0;
+    const targetRating = s.r10TargetRating || 1200;
     if (total < 5) {
       $('weaknessTags').textContent = `Solve ${5 - total} more problems to detect weaknesses`;
       return;
@@ -876,8 +915,30 @@ function loadWeakness() {
       return;
     }
 
-    $('weaknessTags').innerHTML = 'You struggle most with: ' +
-      weakest.map(t => `<span class="weak-tag">${t.tag}</span>`).join(' ');
+    $('weaknessTags').innerHTML = '<div style="margin-bottom:6px">You struggle most with (click to view problems):</div>' +
+      weakest.map(t => `<button class="weak-tag-btn weak-tag" data-tag="${escapeHtml(t.tag)}">${escapeHtml(t.tag)}</button>`).join(' ') +
+      '<div id="weaknessProblemList" style="margin-top:8px"></div>';
+
+    document.querySelectorAll('.weak-tag-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const tag = btn.dataset.tag;
+        const listEl = $('weaknessProblemList');
+        if (!listEl) return;
+        listEl.innerHTML = `<span style="color:var(--text-muted)">Fetching ~${targetRating} ${escapeHtml(tag)} problems...</span>`;
+        const problems = await fetchProblemsByTag(tag, targetRating);
+        if (!problems || problems.length === 0) {
+          listEl.innerHTML = `<span style="color:var(--text-muted)">No problems found for "${escapeHtml(tag)}" around rating ${targetRating}</span>`;
+          return;
+        }
+        listEl.innerHTML = problems.map(p => `
+          <div style="margin:4px 0;font-size:11px">
+            <a href="${escapeHtml(p.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:none">
+              ${escapeHtml(p.id)} - ${escapeHtml(p.name)} (${escapeHtml(p.rating)}) →
+            </a>
+          </div>
+        `).join('');
+      });
+    });
   });
 }
 
@@ -894,18 +955,24 @@ function loadStats() {
     if (history.length > 0) {
       const avg = history.reduce((sum, e) => sum + e.time, 0) / history.length;
       $('statAvgTime').textContent = fmtTimeStr(Math.floor(avg));
+    } else {
+      $('statAvgTime').textContent = '--';
     }
 
     // Solve rate ≤ 45 min
     if (history.length > 0) {
       const under45 = history.filter(e => e.time <= 45 * 60).length;
       $('statSolveRate').textContent = `${Math.round(under45 / history.length * 100)}%`;
+    } else {
+      $('statSolveRate').textContent = '--%';
     }
 
     // Best time
     if (history.length > 0) {
       const best = Math.min(...history.map(e => e.time));
       $('statBestTime').textContent = fmtTimeStr(best);
+    } else {
+      $('statBestTime').textContent = '--';
     }
 
     // Longest streak
@@ -985,7 +1052,7 @@ function renderRatingProgression(ratingLog) {
   const minR = Math.min(...values) - 50;
   const maxR = Math.max(...values) + 50;
   const range = maxR - minR || 1;
-  const w = 360;
+  const w = 330;
   const h = 50;
 
   const points = values.map((v, i) => {
@@ -995,7 +1062,7 @@ function renderRatingProgression(ratingLog) {
   }).join(' ');
 
   container.innerHTML = `
-    <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}">
       <polyline points="${points}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>
       ${values.map((v, i) => {
         const x = (i / (values.length - 1)) * w;
@@ -1074,6 +1141,8 @@ document.addEventListener('keydown', (e) => {
         $('newProblemBtn').click();
       } else if (s.isRunning && !s.solved) {
         $('solvedBtn').click();
+      } else if (!s.isRunning && s.solved) {
+        $('nextProblemBtn').click();
       }
     });
   }
@@ -1091,6 +1160,11 @@ chrome.runtime.onMessage.addListener((msg) => {
 
     // Show solved
     showSolvedBanner(msg.problem, msg.timeStr);
+
+    // Prompt for reflection then update entry
+    showReflectionModal(() => {
+      sendMsg({ type: 'UPDATE_REFLECTION', reflection: { ...reflectionData } });
+    });
   }
   if (msg.type === 'PHASE_CHANGE') {
     showAlarmOverlay(msg.phase - 1);
@@ -1115,13 +1189,13 @@ async function init() {
     startQuoteRotation();
     startCFPolling();
 
-    // Restore phase
-    const pauseAcc = state.pauseAccumulated || 0;
-    const elapsed = Date.now() - state.startTime - pauseAcc;
-    const elapsedSec = Math.floor(elapsed / 1000);
+    // Restore phase using accurate elapsed time
+    const elapsedSec = getElapsedSeconds(state);
     currentPhase = getPhaseIdx(elapsedSec / 60);
     updatePhaseUI(currentPhase);
     updatePhaseDots(currentPhase);
+    $('timerDisplay').textContent = fmtTime(elapsedSec);
+    $('timerDisplay').style.color = PHASES[currentPhase].color;
 
     if (state.isPaused) {
       $('pauseBtn').classList.add('hidden');

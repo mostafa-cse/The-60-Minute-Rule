@@ -36,10 +36,16 @@ function renderMasteredRatings(ratings) {
     container.innerHTML = '<div class="empty-state">No ratings mastered yet</div>';
     return;
   }
-  container.innerHTML = ratings
+  container.innerHTML = '';
+  ratings
+    .slice()
     .sort((a, b) => a - b)
-    .map(r => `<span class="mastered-badge">⭐ ${r}</span>`)
-    .join('');
+    .forEach(r => {
+      const badge = document.createElement('span');
+      badge.className = 'mastered-badge';
+      badge.textContent = `⭐ ${r}`;
+      container.appendChild(badge);
+    });
 }
 
 /* ===== CHECK & SHOW MASTERY BANNER ===== */
@@ -76,9 +82,13 @@ async function loadR10State() {
 
       // Update badge
       const badge = document.getElementById('r10Badge');
-      if (badge && streak > 0) {
-        badge.textContent = streak;
-        badge.classList.remove('hidden');
+      if (badge) {
+        if (streak > 0) {
+          badge.textContent = streak;
+          badge.classList.remove('hidden');
+        } else {
+          badge.classList.add('hidden');
+        }
       }
 
       // Check if mastery banner should fire

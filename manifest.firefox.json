@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "The 60-Minute Rule",
+  "version": "3.0.0",
+  "description": "Structured competitive programming timer for Codeforces — 6-phase workflow, auto AC detection, streak mastery, and productivity tools.",
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://codeforces.com/api/*"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "the-60-minute-rule@extension.local",
+      "strict_min_version": "109.0"
+    }
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+T",
+        "mac": "Command+Shift+T"
+      },
+      "description": "Open The 60-Minute Rule popup"
+    }
+  }
+}

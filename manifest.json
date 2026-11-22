@@ -6,14 +6,19 @@
   "permissions": [
     "storage",
     "alarms",
-    "notifications",
-    "offscreen"
+    "notifications"
   ],
   "host_permissions": [
     "https://codeforces.com/api/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "scripts": ["background.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "the-60-minute-rule@extension.local",
+      "strict_min_version": "109.0"
+    }
   },
   "action": {
     "default_popup": "popup.html",

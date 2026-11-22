@@ -302,11 +302,24 @@ extension/
 
 ### From source
 
-1. Clone this repository.
+#### For Mozilla Firefox:
+1. Ensure the manifest is configured for Firefox (active by default):
+   ```bash
+   node switch-browser.js firefox
+   ```
+2. Open Firefox and navigate to `about:debugging#/runtime/this-firefox`.
+3. Click **Load Temporary Add-on...**.
+4. Select [`manifest.json`](file:///home/m0stafa/Documents/The-60-Minute-Rule-main/manifest.json) in this directory.
+
+#### For Google Chrome / Brave / Edge:
+1. Switch the manifest for Chrome:
+   ```bash
+   node switch-browser.js chrome
+   ```
 2. Open `chrome://extensions`.
-3. Enable **Developer mode**.
+3. Enable **Developer mode** (toggle in the top right).
 4. Click **Load unpacked**.
-5. Select the project folder.
+5. Select this project directory.
 
 ### First-time setup
 
@@ -366,6 +379,12 @@ Good areas for improvement:
 * more Codeforces integrations
 * accessibility improvements
 * bug fixes and edge-case handling
+
+---
+
+## Author & Contributor
+
+* **Mostafa Kamal** ([@mostafa-cse](https://github.com/mostafa-cse))
 
 ---
 

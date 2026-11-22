@@ -18,38 +18,121 @@ function getPhase(elapsedMin) {
 
 /* ===== ICON DRAWING ===== */
 function drawIcon(text, bgColor) {
-  const sizes = [16, 32];
-  const imageData = {};
-  for (const size of sizes) {
-    const canvas = new OffscreenCanvas(size, size);
-    const ctx = canvas.getContext('2d');
-    // Background
-    ctx.fillStyle = bgColor || '#333';
-    ctx.beginPath();
-    ctx.roundRect(0, 0, size, size, size * 0.2);
-    ctx.fill();
-    // Text
-    ctx.fillStyle = '#FFFFFF';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const fontSize = text.length <= 2 ? size * 0.55 : size * 0.38;
-    ctx.font = `bold ${fontSize}px system-ui`;
-    ctx.fillText(text, size / 2, size / 2 + 1);
-    imageData[size] = ctx.getImageData(0, 0, size, size);
-  }
-  chrome.action.setIcon({ imageData: { 16: imageData[16], 32: imageData[32] } });
+  try {
+    const sizes = [16, 32];
+    const imageData = {};
+    for (const size of sizes) {
+      let canvas;
+      if (typeof OffscreenCanvas !== 'undefined') {
+        canvas = new OffscreenCanvas(size, size);
+      } else if (typeof document !== 'undefined') {
+        canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+      } else {
+        return;
+      }
+      const ctx = canvas.getContext('2d');
+      // Background
+      ctx.fillStyle = bgColor || '#333';
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(0, 0, size, size, size * 0.2);
+      } else {
+        ctx.rect(0, 0, size, size);
+      }
+      ctx.fill();
+      // Text
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const fontSize = text.length <= 2 ? size * 0.55 : size * 0.38;
+      ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
+      ctx.fillText(text, size / 2, size / 2 + 1);
+      imageData[size] = ctx.getImageData(0, 0, size, size);
+    }
+    const actionApi = (typeof chrome !== 'undefined' && chrome.action) || (typeof browser !== 'undefined' && browser.action);
+    if (actionApi && actionApi.setIcon) {
+      actionApi.setIcon({ imageData: { 16: imageData[16], 32: imageData[32] } });
+    }
+  } catch (e) { /* ignore */ }
 }
 
 function resetIcon() {
-  chrome.action.setIcon({ path: { 16: 'icons/icon16.png', 48: 'icons/icon48.png', 128: 'icons/icon128.png' } });
+  const actionApi = (typeof chrome !== 'undefined' && chrome.action) || (typeof browser !== 'undefined' && browser.action);
+  if (actionApi && actionApi.setIcon) {
+    actionApi.setIcon({ path: { 16: 'icons/icon16.png', 48: 'icons/icon48.png', 128: 'icons/icon128.png' } });
+  }
 }
 
-/* ===== OFFSCREEN DOCUMENT ===== */
+/* ===== AUDIO PLAYBACK (CHROME OFFSCREEN + FIREFOX NATIVE) ===== */
+let nativeAudioCtx = null;
+function getNativeAudioCtx() {
+  const AudioCtxClass = typeof AudioContext !== 'undefined'
+    ? AudioContext
+    : (typeof webkitAudioContext !== 'undefined' ? webkitAudioContext : null);
+  if (!AudioCtxClass) return null;
+  if (!nativeAudioCtx) nativeAudioCtx = new AudioCtxClass();
+  if (nativeAudioCtx.state === 'suspended') {
+    nativeAudioCtx.resume().catch(() => {});
+  }
+  return nativeAudioCtx;
+}
+
+function playNativePhaseAlarm() {
+  const ctx = getNativeAudioCtx();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const notes = [440, 554, 659];
+  notes.forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.25, t + i * 0.2);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.2 + 0.18);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t + i * 0.2);
+    osc.stop(t + i * 0.2 + 0.2);
+  });
+}
+
+function playNativeCelebration() {
+  const ctx = getNativeAudioCtx();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const notes = [523, 659, 784, 1047];
+  notes.forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.3, t + i * 0.15);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.15 + 0.3);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t + i * 0.15);
+    osc.stop(t + i * 0.15 + 0.35);
+  });
+}
+
+function playNativeAudio(type) {
+  try {
+    if (type === 'celebration') {
+      playNativeCelebration();
+    } else {
+      playNativePhaseAlarm();
+    }
+  } catch (e) { /* ignore */ }
+}
+
 let offscreenCreating = null;
 async function ensureOffscreen() {
+  if (typeof chrome === 'undefined' || !chrome.offscreen || typeof chrome.offscreen.hasDocument !== 'function') return false;
   const existing = await chrome.offscreen.hasDocument().catch(() => false);
-  if (existing) return;
-  if (offscreenCreating) { await offscreenCreating; return; }
+  if (existing) return true;
+  if (offscreenCreating) { await offscreenCreating; return true; }
   offscreenCreating = chrome.offscreen.createDocument({
     url: 'offscreen.html',
     reasons: ['AUDIO_PLAYBACK'],
@@ -57,13 +140,21 @@ async function ensureOffscreen() {
   });
   await offscreenCreating;
   offscreenCreating = null;
+  return true;
 }
 
 async function playAlarm(type) {
   try {
-    await ensureOffscreen();
-    chrome.runtime.sendMessage({ type: 'PLAY_ALARM', alarmType: type || 'phase' });
-  } catch (e) { /* ignore */ }
+    const hasOffscreen = typeof chrome !== 'undefined' && chrome.offscreen && typeof chrome.offscreen.hasDocument === 'function';
+    if (hasOffscreen) {
+      await ensureOffscreen();
+      chrome.runtime.sendMessage({ type: 'PLAY_ALARM', alarmType: type || 'phase' }).catch(() => {});
+    } else {
+      playNativeAudio(type);
+    }
+  } catch (e) {
+    playNativeAudio(type);
+  }
 }
 
 /* ===== TIMER STATE ===== */
@@ -75,7 +166,91 @@ async function setState(obj) {
   return new Promise(r => chrome.storage.local.set(obj, r));
 }
 
-/* ===== CF POLLING ===== */
+/* ===== CF POLLING & AC PROCESSING ===== */
+async function processAC(sub, elapsedSec) {
+  const s = await getState();
+  if (s.solved) return null; // already handled
+
+  const now = Date.now();
+  if (elapsedSec === undefined) {
+    const startTime = s.startTime || now;
+    const pauseAcc = s.pauseAccumulated || 0;
+    const elapsedMs = now - startTime - pauseAcc;
+    elapsedSec = Math.max(0, Math.floor(elapsedMs / 1000));
+  }
+  const elapsedMin = elapsedSec / 60;
+  const phaseIdx = getPhase(elapsedMin);
+  const problemName = sub.problem ? `${sub.problem.contestId}${sub.problem.index} - ${sub.problem.name}` : (sub.name || 'Accepted Problem');
+  const timeStr = `${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s`;
+  const tags = sub.problem ? (sub.problem.tags || []) : (sub.tags || []);
+  const rating = sub.problem ? (sub.problem.rating || 0) : (sub.rating || 0);
+
+  const entry = {
+    problem: problemName,
+    time: elapsedSec,
+    timeStr,
+    phase: phaseIdx + 1,
+    source: 'auto',
+    tags,
+    rating,
+    date: new Date().toISOString()
+  };
+
+  // Stop timer
+  await setState({
+    isRunning: false,
+    isPaused: false,
+    solved: true,
+    cfLastAcId: sub.id || s.cfLastAcId,
+    lastSolve: entry
+  });
+
+  // Clear alarms
+  chrome.alarms.clear('icon-tick');
+  chrome.alarms.clear('cf-poll');
+  chrome.alarms.clear('quote-rotate');
+  for (let i = 1; i <= 6; i++) chrome.alarms.clear(`phase-${i}`);
+
+  // Update icon
+  drawIcon('DONE', '#66BB6A');
+
+  // Play celebration
+  await playAlarm('celebration');
+
+  // Save to history
+  await saveToHistory(entry);
+
+  // Auto-check Rule of 10
+  await r10AutoCheck(elapsedSec);
+
+  // Track weakness tags
+  await trackWeakness(tags, elapsedSec, true);
+
+  // Update daily goal
+  await incrementDailyGoal();
+
+  // Notification
+  chrome.notifications.create('cf-ac-' + (sub.id || Date.now()), {
+    type: 'basic',
+    iconUrl: 'icons/icon128.png',
+    title: '🎉 Accepted! Timer Stopped',
+    message: `${problemName} solved in ${timeStr} · Click to start next`,
+    requireInteraction: true
+  });
+
+  // Notify popup
+  chrome.runtime.sendMessage({
+    type: 'CF_AC_FOUND',
+    problem: problemName,
+    timeStr,
+    elapsedSec,
+    phase: phaseIdx + 1,
+    entry
+  }).catch(() => {});
+
+  return entry;
+}
+
 async function pollCF() {
   const s = await getState();
   if (!s.isRunning || s.isPaused || s.solved || !s.cfHandle || !s.cfAutoMode) return;
@@ -92,86 +267,7 @@ async function pollCF() {
       if (s.cfLastAcId && sub.id <= s.cfLastAcId) continue;
 
       // AC found!
-      const now = Date.now();
-      const pauseAcc = s.pauseAccumulated || 0;
-      const elapsedMs = now - startTime - pauseAcc;
-      const elapsedSec = Math.max(0, Math.floor(elapsedMs / 1000));
-      const elapsedMin = Math.floor(elapsedSec / 60);
-      const phaseIdx = getPhase(elapsedMin);
-      const problemName = `${sub.problem.contestId}${sub.problem.index} - ${sub.problem.name}`;
-      const timeStr = `${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s`;
-      const tags = sub.problem.tags || [];
-      const rating = sub.problem.rating || 0;
-
-      // Stop timer
-      await setState({
-        isRunning: false,
-        isPaused: false,
-        solved: true,
-        cfLastAcId: sub.id,
-        lastSolve: {
-          problem: problemName,
-          time: elapsedSec,
-          timeStr,
-          phase: phaseIdx + 1,
-          source: 'auto',
-          tags,
-          rating,
-          date: new Date().toISOString()
-        }
-      });
-
-      // Clear alarms
-      chrome.alarms.clear('icon-tick');
-      chrome.alarms.clear('cf-poll');
-      chrome.alarms.clear('quote-rotate');
-      for (let i = 1; i <= 6; i++) chrome.alarms.clear(`phase-${i}`);
-
-      // Update icon
-      drawIcon('DONE', '#66BB6A');
-
-      // Play celebration
-      await playAlarm('celebration');
-
-      // Save to history
-      await saveToHistory({
-        problem: problemName,
-        time: elapsedSec,
-        timeStr,
-        phase: phaseIdx + 1,
-        source: 'auto',
-        tags,
-        rating,
-        date: new Date().toISOString()
-      });
-
-      // Auto-check Rule of 10
-      await r10AutoCheck(elapsedSec);
-
-      // Track weakness tags
-      await trackWeakness(tags, elapsedSec, true);
-
-      // Update daily goal
-      await incrementDailyGoal();
-
-      // Notification
-      chrome.notifications.create('cf-ac-' + sub.id, {
-        type: 'basic',
-        iconUrl: 'icons/icon128.png',
-        title: '🎉 Accepted! Timer Stopped',
-        message: `${problemName} solved in ${timeStr} · Click to start next`,
-        requireInteraction: true
-      });
-
-      // Notify popup
-      chrome.runtime.sendMessage({
-        type: 'CF_AC_FOUND',
-        problem: problemName,
-        timeStr,
-        elapsedSec,
-        phase: phaseIdx + 1
-      }).catch(() => {});
-
+      await processAC(sub);
       return;
     }
   } catch (e) { /* network error, ignore */ }
@@ -312,7 +408,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
   if (alarm.name.startsWith('phase-')) {
     const s = await getState();
-    if (!s.isRunning || s.solved) return;
+    if (!s.isRunning || s.isPaused || s.solved) return;
     const phaseNum = parseInt(alarm.name.split('-')[1]);
     const phase = PHASES[phaseNum - 1];
     if (!phase) return;
@@ -392,6 +488,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     handleManualSolve(msg).then(r => sendResponse(r));
     return true;
   }
+  if (msg.type === 'CF_AC_DETECTED') {
+    processAC(msg.sub, msg.elapsedSec).then(entry => sendResponse({ ok: true, entry }));
+    return true;
+  }
+  if (msg.type === 'UPDATE_REFLECTION') {
+    handleUpdateReflection(msg.reflection).then(r => sendResponse(r));
+    return true;
+  }
   if (msg.type === 'GET_STATE') {
     getState().then(r => sendResponse(r));
     return true;
@@ -401,7 +505,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg.type === 'R10_MANUAL_SOLVE') {
-    r10AutoCheck(msg.elapsedSec || 0).then(() => sendResponse({ ok: true }));
+    setState({ r10JustChecked: false }).then(() => {
+      r10AutoCheck(msg.elapsedSec || 0).then(() => sendResponse({ ok: true }));
+    });
     return true;
   }
   if (msg.type === 'R10_CHANGE_RATING') {
@@ -424,6 +530,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   return false;
 });
 
+async function handleUpdateReflection(reflection) {
+  const s = await getState();
+  let history = s.history || [];
+  if (history.length > 0) {
+    history[0].reflection = reflection;
+  }
+  let lastSolve = s.lastSolve;
+  if (lastSolve) {
+    lastSolve.reflection = reflection;
+  }
+  await setState({ history, lastSolve });
+  return { ok: true };
+}
+
 async function handleStartTimer() {
   const now = Date.now();
   await setState({
@@ -434,7 +554,6 @@ async function handleStartTimer() {
     pauseAccumulated: 0,
     pauseCount: 0,
     pauseStartTime: null,
-    cfLastAcId: null,
     r10JustChecked: false,
     lastSolve: null
   });
@@ -484,6 +603,9 @@ async function handlePauseTimer() {
     pauseStartTime: Date.now()
   });
 
+  // Clear phase alarms while paused
+  for (let i = 2; i <= 6; i++) chrome.alarms.clear(`phase-${i}`);
+
   drawIcon('⏸', '#666');
   return { ok: true };
 }
@@ -503,9 +625,20 @@ async function handleResumeTimer() {
     pauseCount: newPauseCount
   });
 
+  // Reschedule phase alarms based on active elapsed time
+  const phaseMinutes = [5, 25, 35, 45, 60];
+  const elapsedMs = Date.now() - s.startTime - newAccumulated;
+  const elapsedMin = elapsedMs / 60000;
+  for (let i = 0; i < phaseMinutes.length; i++) {
+    const phaseNum = i + 2;
+    const remainingMin = phaseMinutes[i] - elapsedMin;
+    if (remainingMin > 0) {
+      chrome.alarms.create(`phase-${phaseNum}`, { delayInMinutes: remainingMin });
+    }
+  }
+
   // Restore icon
-  const elapsed = Date.now() - s.startTime - newAccumulated;
-  const min = Math.floor(elapsed / 60000);
+  const min = Math.max(0, Math.floor(elapsedMin));
   const phaseIdx = getPhase(min);
   drawIcon(String(min).padStart(2, '0'), PHASES[phaseIdx].color);
 
@@ -546,31 +679,6 @@ async function handleManualSolve(msg) {
   const phaseIdx = getPhase(elapsedMin);
   const timeStr = `${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s`;
 
-  await setState({
-    isRunning: false,
-    isPaused: false,
-    solved: true,
-    lastSolve: {
-      problem: msg.problem || 'Manual Solve',
-      time: elapsedSec,
-      timeStr,
-      phase: phaseIdx + 1,
-      source: 'manual',
-      tags: [],
-      rating: 0,
-      date: new Date().toISOString()
-    }
-  });
-
-  chrome.alarms.clear('icon-tick');
-  chrome.alarms.clear('cf-poll');
-  chrome.alarms.clear('quote-rotate');
-  for (let i = 1; i <= 6; i++) chrome.alarms.clear(`phase-${i}`);
-
-  drawIcon('DONE', '#66BB6A');
-  await playAlarm('celebration');
-
-  // Save to history
   const entry = {
     problem: msg.problem || 'Manual Solve',
     time: elapsedSec,
@@ -582,8 +690,23 @@ async function handleManualSolve(msg) {
     date: new Date().toISOString()
   };
 
-  // Don't save yet — wait for reflection
-  // The popup will call SAVE_HISTORY_ENTRY after reflection
+  await setState({
+    isRunning: false,
+    isPaused: false,
+    solved: true,
+    lastSolve: entry
+  });
+
+  chrome.alarms.clear('icon-tick');
+  chrome.alarms.clear('cf-poll');
+  chrome.alarms.clear('quote-rotate');
+  for (let i = 1; i <= 6; i++) chrome.alarms.clear(`phase-${i}`);
+
+  drawIcon('DONE', '#66BB6A');
+  await playAlarm('celebration');
+
+  // Save to history immediately so the solve is never lost if popup closes
+  await saveToHistory(entry);
 
   // Auto-check Rule of 10
   await r10AutoCheck(elapsedSec);

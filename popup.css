@@ -143,7 +143,24 @@ body::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 2p
 
 /* ===== DAILY GOAL BAR ===== */
 .daily-goal-bar { margin-bottom: 10px; }
-.goal-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+.goal-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+.goal-select {
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 10px;
+  padding: 1px 4px;
+  cursor: pointer;
+  outline: none;
+}
 .goal-track {
   height: 6px; background: var(--bg-card); border-radius: 3px; overflow: hidden;
 }
@@ -519,6 +536,23 @@ body::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 2p
   font-size: 10px;
   font-weight: 600;
   margin: 2px;
+}
+.weak-tag-btn {
+  border: 1px solid rgba(229,115,115,0.3);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.weak-tag-btn:hover {
+  background: rgba(229,115,115,0.3);
+  transform: translateY(-1px);
+}
+.h-review-status {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(79, 195, 247, 0.15);
+  color: var(--accent);
 }
 
 /* ===== STATS ===== */

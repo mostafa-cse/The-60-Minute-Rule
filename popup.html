@@ -26,7 +26,15 @@
   <section id="tab-timer" class="tab-panel active">
     <!-- Daily Goal Bar -->
     <div id="dailyGoalBar" class="daily-goal-bar hidden">
-      <div class="goal-label"><span id="goalText">0 / 3 problems</span></div>
+      <div class="goal-label">
+        <span id="goalText">0 / 3 problems</span>
+        <select id="dailyGoalSelect" class="goal-select" title="Set daily goal">
+          <option value="1">1/day</option>
+          <option value="2">2/day</option>
+          <option value="3" selected>3/day</option>
+          <option value="5">5/day</option>
+        </select>
+      </div>
       <div class="goal-track"><div id="goalFill" class="goal-fill"></div></div>
     </div>
     <div id="dailyGoalBanner" class="banner banner-success hidden">🎯 Daily goal complete!</div>
